@@ -30,3 +30,16 @@ export interface Playlist {
   updated_at: string
   items?: PlaylistItem[]
 }
+
+export interface Screen {
+  id: string
+  name: string
+  location?: string
+  status: string
+  current_playlist_id?: string | null
+  last_seen_at?: string | null
+  token: string
+  online: boolean
+  created_at: string
+  updated_at: string
+}

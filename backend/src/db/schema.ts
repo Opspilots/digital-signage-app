@@ -54,6 +54,18 @@ db.exec(`
     password_hash TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS screens (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    location TEXT,
+    status TEXT NOT NULL DEFAULT 'offline',
+    current_playlist_id TEXT REFERENCES playlists(id) ON DELETE SET NULL,
+    last_seen_at TEXT,
+    token TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Column rename migrations for existing databases

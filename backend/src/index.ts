@@ -4,6 +4,7 @@ import path from 'path';
 import mediaRouter from './routes/media';
 import playlistsRouter from './routes/playlists';
 import authRouter from './routes/auth';
+import screensRouter, { screensPublicRouter } from './routes/screens';
 import { requireAuth } from './middleware/auth';
 
 // Initialize DB (runs migrations on import)
@@ -21,6 +22,7 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Public routes (no auth required)
 app.use('/api/auth', authRouter);
+app.use('/api/screens', screensPublicRouter);
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -30,6 +32,7 @@ app.get('/health', (_req, res) => {
 // Protected API routes
 app.use('/api/media', requireAuth, mediaRouter);
 app.use('/api/playlists', requireAuth, playlistsRouter);
+app.use('/api/screens', requireAuth, screensRouter);
 
 app.listen(PORT, () => {
   console.log(`Digital Signage API running on http://localhost:${PORT}`);

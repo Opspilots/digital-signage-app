@@ -1,4 +1,4 @@
-import type { MediaFile, Playlist, PlaylistItem } from './types'
+import type { MediaFile, Playlist, PlaylistItem, Screen } from './types'
 import { getAccessToken, refresh, logout } from '../auth'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
@@ -91,6 +91,22 @@ export const playlistApi = {
     }),
   delete: (id: string) =>
     request<void>(`/api/playlists/${id}`, { method: 'DELETE' }),
+}
+
+// Screens
+export const screenApi = {
+  list: () => request<Screen[]>('/api/screens'),
+  get: (id: string) => request<Screen>(`/api/screens/${id}`),
+  create: (data: { name: string; location?: string }) =>
+    request<Screen>('/api/screens', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { name?: string; location?: string; current_playlist_id?: string | null }) =>
+    request<Screen>(`/api/screens/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/api/screens/${id}`, { method: 'DELETE' }),
+  heartbeat: (token: string) =>
+    fetch(`${BASE_URL}/api/screens/heartbeat`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((r) => r.json() as Promise<{ screen_id: string; current_playlist_id: string | null; playlist: { id: string; title: string } | null }>),
 }
 
 // Playlist items

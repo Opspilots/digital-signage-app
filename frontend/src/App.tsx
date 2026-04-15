@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import MediaLibrary from './pages/MediaLibrary'
 import PlaylistEditor from './pages/PlaylistEditor'
 import PlaylistPlayer from './pages/PlaylistPlayer'
+import Screens from './pages/Screens'
 import Login from './pages/Login'
 import { isAuthenticated, onAuthChange } from './auth'
 
@@ -47,6 +48,14 @@ export default function App() {
           element={
             <RequireAuth>
               <PlaylistEditor />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/screens"
+          element={
+            <RequireAuth>
+              <Screens />
             </RequireAuth>
           }
         />

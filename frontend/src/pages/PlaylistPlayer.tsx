@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { playlistApi } from '../api/client'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { playlistApi, screenApi } from '../api/client'
 import type { Playlist, PlaylistItem } from '../api/types'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 const SCREEN_TOKEN = import.meta.env.VITE_SCREEN_TOKEN as string | undefined
+const HEARTBEAT_INTERVAL_MS = 30_000
 
 export default function PlaylistPlayer() {
   const { id } = useParams<{ id: string }>()
+  const [searchParams] = useSearchParams()
+  const screenToken = searchParams.get('screen') ?? undefined
   const navigate = useNavigate()
   const [playlist, setPlaylist] = useState<Playlist | null>(null)
+  const [currentPlaylistId, setCurrentPlaylistId] = useState<string | undefined>(id)
   const [items, setItems] = useState<PlaylistItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -19,18 +23,44 @@ export default function PlaylistPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Load playlist by id
   useEffect(() => {
-    if (!id) return
+    const playlistId = currentPlaylistId
+    if (!playlistId) return
+    setLoading(true)
     playlistApi
-      .get(id, SCREEN_TOKEN)
+      .get(playlistId, SCREEN_TOKEN)
       .then((p) => {
         setPlaylist(p)
         setItems(p.items ?? [])
+        setCurrentIndex(0)
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
-  }, [id])
+  }, [currentPlaylistId])
+
+  // Screen heartbeat polling
+  useEffect(() => {
+    if (!screenToken) return
+
+    const sendHeartbeat = () => {
+      screenApi.heartbeat(screenToken).then((data) => {
+        if (data.current_playlist_id && data.current_playlist_id !== currentPlaylistId) {
+          setCurrentPlaylistId(data.current_playlist_id)
+        }
+      }).catch(() => {/* ignore heartbeat errors */})
+    }
+
+    sendHeartbeat()
+    heartbeatRef.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS)
+
+    return () => {
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenToken])
 
   const goTo = useCallback((index: number) => {
     setCurrentIndex(index)
