@@ -79,6 +79,12 @@ db.exec(`
   );
 `);
 
+// Add thumbnail_path column if missing
+const mediaInfo = db.prepare('PRAGMA table_info(media_files)').all() as Array<{ name: string }>;
+if (!mediaInfo.some(col => col.name === 'thumbnail_path')) {
+  db.exec('ALTER TABLE media_files ADD COLUMN thumbnail_path TEXT');
+}
+
 // Column rename migrations for existing databases
 const playlistsInfo = db.prepare('PRAGMA table_info(playlists)').all() as Array<{ name: string }>;
 if (playlistsInfo.some(col => col.name === 'name')) {

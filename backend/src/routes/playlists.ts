@@ -147,7 +147,7 @@ router.post('/:id/items', (req: Request, res: Response) => {
     return;
   }
 
-  const media = db.prepare('SELECT * FROM media_files WHERE id = ?').get(media_file_id);
+  const media = db.prepare('SELECT * FROM media_files WHERE id = ?').get(media_file_id) as { mime_type: string; duration_seconds: number | null } | undefined;
   if (!media) {
     res.status(404).json({ error: 'Media file not found' });
     return;
@@ -158,13 +158,18 @@ router.post('/:id/items', (req: Request, res: Response) => {
   ).get(id) as { max_pos: number | null };
   const nextPosition = (maxPositionRow.max_pos ?? -1) + 1;
 
+  // Default display_duration: use actual video duration if available, else 5s
+  const defaultDuration = media.mime_type.startsWith('video/') && media.duration_seconds
+    ? Math.round(media.duration_seconds)
+    : 5;
+
   const itemId = uuidv4();
   db.prepare(`
     INSERT INTO playlist_items (id, playlist_id, media_file_id, position, display_duration, transition_type, transition_duration)
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `).run(
     itemId, id, media_file_id, nextPosition,
-    display_duration ?? 5,
+    display_duration ?? defaultDuration,
     transition_type ?? 'none',
     transition_duration ?? 500,
   );
@@ -241,12 +246,17 @@ router.put('/:id/items', (req: Request, res: Response) => {
       INSERT INTO playlist_items (id, playlist_id, media_file_id, position, display_duration, transition_type, transition_duration)
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
+    const getMedia = db.prepare('SELECT mime_type, duration_seconds FROM media_files WHERE id = ?');
 
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
+      const media = getMedia.get(item.media_file_id) as { mime_type: string; duration_seconds: number | null } | undefined;
+      const defaultDuration = media?.mime_type.startsWith('video/') && media?.duration_seconds
+        ? Math.round(media.duration_seconds)
+        : 5;
       insert.run(
         uuidv4(), id, item.media_file_id, i,
-        item.display_duration ?? 5,
+        item.display_duration ?? defaultDuration,
         item.transition_type ?? 'none',
         item.transition_duration ?? 500,
       );
