@@ -1,12 +1,33 @@
 import type { MediaFile, Playlist, PlaylistItem } from './types'
+import { getAccessToken, refresh, logout } from '../auth'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
+function authHeaders(): Record<string, string> {
+  const token = getAccessToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...options?.headers },
-    ...options,
-  })
+  const makeRequest = () =>
+    fetch(`${BASE_URL}${path}`, {
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), ...options?.headers },
+      ...options,
+    })
+
+  let res = await makeRequest()
+
+  // On 401, try refreshing once and retry
+  if (res.status === 401) {
+    try {
+      await refresh()
+    } catch {
+      logout()
+      throw new Error('Session expired. Please log in again.')
+    }
+    res = await makeRequest()
+  }
+
   if (!res.ok) {
     const text = await res.text()
     throw new Error(`${res.status} ${res.statusText}: ${text}`)
@@ -17,27 +38,47 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 // Media
 export const mediaApi = {
   list: () => request<MediaFile[]>('/api/media'),
-  upload: (file: File) => {
+  upload: async (file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return fetch(`${BASE_URL}/api/media`, {
-      method: 'POST',
-      body: form,
-    }).then(async (res) => {
-      if (!res.ok) throw new Error(await res.text())
-      return res.json() as Promise<MediaFile>
-    })
+    const makeUpload = () =>
+      fetch(`${BASE_URL}/api/media`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: form,
+      })
+    let res = await makeUpload()
+    if (res.status === 401) {
+      try {
+        await refresh()
+      } catch {
+        logout()
+        throw new Error('Session expired. Please log in again.')
+      }
+      res = await makeUpload()
+    }
+    if (!res.ok) throw new Error(await res.text())
+    return res.json() as Promise<MediaFile>
   },
-  delete: (id: string) =>
-    fetch(`${BASE_URL}/api/media/${id}`, { method: 'DELETE' }).then((res) => {
-      if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
-    }),
+  delete: async (id: string) => {
+    const makeDelete = () =>
+      fetch(`${BASE_URL}/api/media/${id}`, { method: 'DELETE', headers: authHeaders() })
+    let res = await makeDelete()
+    if (res.status === 401) {
+      try { await refresh() } catch { logout() }
+      res = await makeDelete()
+    }
+    if (!res.ok) throw new Error(`Delete failed: ${res.status}`)
+  },
 }
 
 // Playlists
 export const playlistApi = {
   list: () => request<Playlist[]>('/api/playlists'),
-  get: (id: string) => request<Playlist>(`/api/playlists/${id}`),
+  get: (id: string, screenToken?: string) => {
+    const headers = screenToken ? { Authorization: `Bearer ${screenToken}` } : undefined
+    return request<Playlist>(`/api/playlists/${id}`, { headers })
+  },
   create: (data: { title: string; description?: string }) =>
     request<Playlist>('/api/playlists', {
       method: 'POST',

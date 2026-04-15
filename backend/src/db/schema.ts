@@ -1,6 +1,8 @@
 import Database from 'better-sqlite3';
 import path from 'path';
 import fs from 'fs';
+import bcrypt from 'bcryptjs';
+import { v4 as uuidv4 } from 'uuid';
 
 const DB_PATH = path.join(__dirname, '../../data/signage.db');
 
@@ -45,6 +47,13 @@ db.exec(`
     transition_type TEXT NOT NULL DEFAULT 'none',
     transition_duration INTEGER NOT NULL DEFAULT 500
   );
+
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
 `);
 
 // Column rename migrations for existing databases
@@ -59,6 +68,19 @@ if (itemsInfo.some(col => col.name === 'media_id')) {
 }
 if (itemsInfo.some(col => col.name === 'order_index')) {
   db.exec('ALTER TABLE playlist_items RENAME COLUMN order_index TO position');
+}
+
+// Seed default admin user from env vars on first run
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin';
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin';
+
+const existingAdmin = db.prepare('SELECT id FROM users WHERE username = ?').get(ADMIN_USERNAME);
+if (!existingAdmin) {
+  const hash = bcrypt.hashSync(ADMIN_PASSWORD, 12);
+  db.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)').run(
+    uuidv4(), ADMIN_USERNAME, hash
+  );
+  console.log(`[db] Default admin user '${ADMIN_USERNAME}' created`);
 }
 
 export default db;

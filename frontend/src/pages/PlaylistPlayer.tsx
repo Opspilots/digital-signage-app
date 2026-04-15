@@ -4,6 +4,7 @@ import { playlistApi } from '../api/client'
 import type { Playlist, PlaylistItem } from '../api/types'
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+const SCREEN_TOKEN = import.meta.env.VITE_SCREEN_TOKEN as string | undefined
 
 export default function PlaylistPlayer() {
   const { id } = useParams<{ id: string }>()
@@ -22,7 +23,7 @@ export default function PlaylistPlayer() {
   useEffect(() => {
     if (!id) return
     playlistApi
-      .get(id)
+      .get(id, SCREEN_TOKEN)
       .then((p) => {
         setPlaylist(p)
         setItems(p.items ?? [])

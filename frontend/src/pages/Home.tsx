@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { playlistApi } from '../api/client'
 import type { Playlist } from '../api/types'
+import { logout } from '../auth'
 
 export default function Home() {
+  const navigate = useNavigate()
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -48,12 +50,20 @@ export default function Home() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
         <h1 className="text-2xl font-bold text-gray-900">Digital Signage</h1>
-        <Link
-          to="/media"
-          className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-        >
-          Media Library
-        </Link>
+        <div className="flex items-center gap-4">
+          <Link
+            to="/media"
+            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+          >
+            Media Library
+          </Link>
+          <button
+            onClick={() => { logout(); navigate('/login') }}
+            className="text-sm text-gray-500 hover:text-gray-700"
+          >
+            Sign out
+          </button>
+        </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-6 py-8">
