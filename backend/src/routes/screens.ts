@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/schema';
+import { timeToMinutes } from './schedules';
 
 const router = Router();
 
@@ -151,14 +152,48 @@ screensPublicRouter.post('/heartbeat', (req: Request, res: Response) => {
     UPDATE screens SET last_seen_at = ?, status = 'online', updated_at = ? WHERE id = ?
   `).run(now, now, screen.id);
 
+  // Resolve active playlist via schedule
+  const nowDate = new Date();
+  // JS getDay(): 0=Sun, 1=Mon...6=Sat → bitmask: Mon=1,Tue=2,...,Sun=64
+  const jsDow = nowDate.getDay();
+  const dowBit = jsDow === 0 ? 64 : (1 << (jsDow - 1));
+  const currentMinutes = nowDate.getHours() * 60 + nowDate.getMinutes();
+
+  type ScheduleRow = { id: string; playlist_id: string; days_of_week: number; start_time: string; end_time: string; priority: number };
+  const schedules = db.prepare(`
+    SELECT id, playlist_id, days_of_week, start_time, end_time, priority
+    FROM schedules
+    WHERE screen_id = ?
+    ORDER BY priority DESC
+  `).all(screen.id as string) as ScheduleRow[];
+
+  let resolvedPlaylistId: string | null = null;
+  let scheduleActive = false;
+
+  for (const sched of schedules) {
+    if ((sched.days_of_week & dowBit) === 0) continue;
+    const start = timeToMinutes(sched.start_time);
+    const end = timeToMinutes(sched.end_time);
+    if (currentMinutes >= start && currentMinutes < end) {
+      resolvedPlaylistId = sched.playlist_id;
+      scheduleActive = true;
+      break;
+    }
+  }
+
+  if (!scheduleActive) {
+    resolvedPlaylistId = (screen.current_playlist_id as string | null) ?? null;
+  }
+
   let playlist = null;
-  if (screen.current_playlist_id) {
-    playlist = db.prepare('SELECT id, title FROM playlists WHERE id = ?').get(screen.current_playlist_id as string);
+  if (resolvedPlaylistId) {
+    playlist = db.prepare('SELECT id, title FROM playlists WHERE id = ?').get(resolvedPlaylistId);
   }
 
   res.json({
     screen_id: screen.id,
-    current_playlist_id: screen.current_playlist_id ?? null,
+    current_playlist_id: resolvedPlaylistId,
     playlist,
+    schedule_active: scheduleActive,
   });
 });

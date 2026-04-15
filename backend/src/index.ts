@@ -5,6 +5,7 @@ import mediaRouter from './routes/media';
 import playlistsRouter from './routes/playlists';
 import authRouter from './routes/auth';
 import screensRouter, { screensPublicRouter } from './routes/screens';
+import schedulesRouter from './routes/schedules';
 import { requireAuth } from './middleware/auth';
 
 // Initialize DB (runs migrations on import)
@@ -33,6 +34,7 @@ app.get('/health', (_req, res) => {
 app.use('/api/media', requireAuth, mediaRouter);
 app.use('/api/playlists', requireAuth, playlistsRouter);
 app.use('/api/screens', requireAuth, screensRouter);
+app.use('/api/screens/:screenId/schedules', requireAuth, schedulesRouter);
 
 app.listen(PORT, () => {
   console.log(`Digital Signage API running on http://localhost:${PORT}`);
