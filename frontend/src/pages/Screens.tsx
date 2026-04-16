@@ -26,6 +26,7 @@ export default function Screens() {
   const [newName, setNewName] = useState('')
   const [newLocation, setNewLocation] = useState('')
   const [copiedToken, setCopiedToken] = useState<string | null>(null)
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
 
   // Bluetooth discovery state
   const { isSupported: btSupported, isScanning, devices: btDevices, error: btError, scanForDevices, clearDevices } = useBluetooth()
@@ -84,6 +85,20 @@ export default function Screens() {
     navigator.clipboard.writeText(token).then(() => {
       setCopiedToken(token)
       setTimeout(() => setCopiedToken(null), 2000)
+    })
+  }
+
+  const getPlayerUrl = (screen: Screen) => {
+    if (!screen.current_playlist_id) return null
+    return `${window.location.origin}/playlists/${screen.current_playlist_id}/play?screen=${screen.token}`
+  }
+
+  const handleCopyPlayerUrl = (screen: Screen) => {
+    const url = getPlayerUrl(screen)
+    if (!url) return
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedUrl(screen.id)
+      setTimeout(() => setCopiedUrl(null), 2000)
     })
   }
 
@@ -249,7 +264,7 @@ export default function Screens() {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-3 flex-shrink-0">
+                  <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
                     <select
                       value={screen.current_playlist_id ?? ''}
                       onChange={(e) => handleAssignPlaylist(screen.id, e.target.value || null)}
@@ -262,6 +277,28 @@ export default function Screens() {
                         </option>
                       ))}
                     </select>
+                    {screen.current_playlist_id ? (
+                      <>
+                        <a
+                          href={getPlayerUrl(screen) ?? '#'}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium bg-green-600 text-white hover:bg-green-700 rounded px-3 py-1 transition-colors"
+                          title="Open player in new tab"
+                        >
+                          ▶ Launch
+                        </a>
+                        <button
+                          onClick={() => handleCopyPlayerUrl(screen)}
+                          className="text-sm text-gray-500 hover:text-gray-700 bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs"
+                          title="Copy player URL"
+                        >
+                          {copiedUrl === screen.id ? '✓ URL copied' : 'Copy URL'}
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-400 italic">Assign a playlist to launch</span>
+                    )}
                     <button
                       onClick={() => handleCopyToken(screen.token)}
                       className="text-sm text-gray-500 hover:text-gray-700 font-mono bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs"

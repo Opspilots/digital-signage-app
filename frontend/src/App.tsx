@@ -39,9 +39,8 @@ function AppLayout() {
   const navigate = useNavigate()
 
   const navLinks = [
-    { to: '/', label: 'Dashboard', exact: true },
-    { to: '/media', label: 'Media Library', exact: false },
     { to: '/playlists', label: 'Playlists', exact: false },
+    { to: '/media', label: 'Media Library', exact: false },
     { to: '/screens', label: 'Screens', exact: false },
   ]
 
@@ -116,6 +115,7 @@ export default function App() {
           }
         >
           <Route index element={<Home />} />
+          <Route path="/playlists" element={<Home />} />
           <Route path="/media" element={<MediaLibrary />} />
           <Route path="/playlists/:id/edit" element={<PlaylistEditor />} />
           <Route path="/screens" element={<Screens />} />

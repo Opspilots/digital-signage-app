@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { playlistApi } from '../api/client'
+import { playlistApi, mediaApi, screenApi } from '../api/client'
 import type { Playlist } from '../api/types'
 
 export default function Home() {
   const [playlists, setPlaylists] = useState<Playlist[]>([])
+  const [mediaCount, setMediaCount] = useState<number | null>(null)
+  const [screenCount, setScreenCount] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
@@ -12,9 +14,12 @@ export default function Home() {
 
   const load = () => {
     setLoading(true)
-    playlistApi
-      .list()
-      .then(setPlaylists)
+    Promise.all([playlistApi.list(), mediaApi.list(), screenApi.list()])
+      .then(([p, m, s]) => {
+        setPlaylists(p)
+        setMediaCount(m.length)
+        setScreenCount(s.length)
+      })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }
@@ -65,11 +70,11 @@ export default function Home() {
         </div>
         <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 shadow-lg">
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Media</p>
-          <p className="text-3xl font-bold text-gray-100 mt-1">—</p>
+          <p className="text-3xl font-bold text-gray-100 mt-1">{mediaCount ?? '—'}</p>
         </div>
         <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 shadow-lg">
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Screens</p>
-          <p className="text-3xl font-bold text-gray-100 mt-1">—</p>
+          <p className="text-3xl font-bold text-gray-100 mt-1">{screenCount ?? '—'}</p>
         </div>
         <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 shadow-lg">
           <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Schedules</p>
