@@ -1,25 +1,34 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { playlistApi, mediaApi, screenApi } from '../api/client'
-import type { Playlist } from '../api/types'
+import type { Playlist, Screen } from '../api/types'
+
+function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
+  return (
+    <div className="ds-card p-5 animate-fade-in">
+      <p className="text-xs font-500 uppercase tracking-widest mb-3" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>
+        {label}
+      </p>
+      <p className="font-display font-700" style={{ fontSize: 36, lineHeight: 1, color: accent ? 'var(--cyan)' : 'var(--text1)' }}>
+        {value}
+      </p>
+    </div>
+  )
+}
 
 export default function Home() {
-  const [playlists, setPlaylists] = useState<Playlist[]>([])
-  const [mediaCount, setMediaCount] = useState<number | null>(null)
-  const [screenCount, setScreenCount] = useState<number | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
-  const [newTitle, setNewTitle] = useState('')
+  const [playlists,   setPlaylists]   = useState<Playlist[]>([])
+  const [mediaCount,  setMediaCount]  = useState<number | null>(null)
+  const [screens,     setScreens]     = useState<Screen[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [error,       setError]       = useState<string | null>(null)
+  const [creating,    setCreating]    = useState(false)
+  const [newTitle,    setNewTitle]    = useState('')
 
   const load = () => {
     setLoading(true)
     Promise.all([playlistApi.list(), mediaApi.list(), screenApi.list()])
-      .then(([p, m, s]) => {
-        setPlaylists(p)
-        setMediaCount(m.length)
-        setScreenCount(s.length)
-      })
+      .then(([p, m, s]) => { setPlaylists(p); setMediaCount(m.length); setScreens(s as Screen[]) })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }
@@ -34,9 +43,7 @@ export default function Home() {
       setPlaylists((prev) => [p, ...prev])
       setNewTitle('')
       setCreating(false)
-    } catch (e) {
-      setError(String(e))
-    }
+    } catch (e) { setError(String(e)) }
   }
 
   const handleDelete = async (id: string) => {
@@ -44,68 +51,58 @@ export default function Home() {
     try {
       await playlistApi.delete(id)
       setPlaylists((prev) => prev.filter((p) => p.id !== id))
-    } catch (e) {
-      setError(String(e))
-    }
+    } catch (e) { setError(String(e)) }
   }
 
+  const onlineCount = screens.filter((s) => s.online).length
+
   return (
-    <div className="p-6 max-w-5xl mx-auto">
-      {/* Page top bar */}
+    <div className="p-8 max-w-5xl mx-auto">
+      {/* Header */}
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-2xl font-bold text-gray-100">Dashboard</h1>
+        <div>
+          <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>
+            Dashboard
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>Manage your content and screens</p>
+        </div>
         <button
           onClick={() => setCreating(true)}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+          className="ds-btn"
         >
           + New Playlist
         </button>
       </div>
 
-      {/* Stats cards */}
+      {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 shadow-lg">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Playlists</p>
-          <p className="text-3xl font-bold text-gray-100 mt-1">{playlists.length}</p>
-        </div>
-        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 shadow-lg">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Media</p>
-          <p className="text-3xl font-bold text-gray-100 mt-1">{mediaCount ?? '—'}</p>
-        </div>
-        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 shadow-lg">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Screens</p>
-          <p className="text-3xl font-bold text-gray-100 mt-1">{screenCount ?? '—'}</p>
-        </div>
-        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 shadow-lg">
-          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Schedules</p>
-          <p className="text-3xl font-bold text-gray-100 mt-1">—</p>
-        </div>
+        <StatCard label="Playlists" value={playlists.length} />
+        <StatCard label="Media files" value={mediaCount ?? '—'} />
+        <StatCard label="Screens" value={screens.length} />
+        <StatCard label="Online now" value={onlineCount} accent={onlineCount > 0} />
       </div>
 
       {/* Create form */}
       {creating && (
         <form
           onSubmit={handleCreate}
-          className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-4 mb-4 flex gap-3"
+          className="ds-card p-4 mb-4 flex gap-3 animate-slide-up"
         >
           <input
             autoFocus
             type="text"
-            placeholder="Playlist title"
+            placeholder="Playlist title…"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
-            className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+            className="ds-input flex-1"
+            style={{ width: 'auto' }}
           />
-          <button
-            type="submit"
-            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-          >
-            Create
-          </button>
+          <button type="submit" className="ds-btn flex-shrink-0">Create</button>
           <button
             type="button"
-            onClick={() => setCreating(false)}
-            className="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-lg text-sm transition-colors"
+            onClick={() => { setCreating(false); setNewTitle('') }}
+            className="text-sm px-3 py-2 rounded-lg transition-colors"
+            style={{ color: 'var(--text2)' }}
           >
             Cancel
           </button>
@@ -113,47 +110,64 @@ export default function Home() {
       )}
 
       {error && (
-        <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-4 text-sm">
+        <div className="rounded-lg px-4 py-3 text-sm mb-4" style={{ background: 'var(--red-muted)', border: '1px solid rgba(248,113,113,0.15)', color: 'var(--red)' }}>
           {error}
         </div>
       )}
 
-      {/* Playlist list */}
+      {/* Section header */}
+      <div className="flex items-center gap-3 mb-3">
+        <p className="text-xs font-500 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>
+          Playlists
+        </p>
+        <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+      </div>
+
       {loading ? (
-        <div className="text-center text-gray-400 py-12">Loading…</div>
+        <div className="py-12 text-center text-sm" style={{ color: 'var(--text2)' }}>Loading…</div>
       ) : playlists.length === 0 ? (
-        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl px-5 py-12 text-center text-gray-400">
-          No playlists yet. Create one to get started.
+        <div className="ds-card px-6 py-14 text-center animate-fade-in">
+          <p className="text-3xl mb-3">🎬</p>
+          <p className="font-500 mb-1" style={{ color: 'var(--text1)' }}>No playlists yet</p>
+          <p className="text-sm" style={{ color: 'var(--text2)' }}>Create one to start scheduling content on your screens.</p>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2 animate-fade-in">
           {playlists.map((p) => (
             <div
               key={p.id}
-              className="bg-gray-800 ring-1 ring-gray-700 hover:ring-gray-600 rounded-xl px-5 py-4 flex items-center justify-between transition-all group"
+              className="ds-card px-5 py-4 flex items-center justify-between group transition-colors"
+              style={{ cursor: 'default' }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border2)')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
             >
-              <div>
-                <h3 className="text-base font-semibold text-gray-100">{p.title}</h3>
-                {p.description && (
-                  <p className="text-sm text-gray-400 mt-0.5">{p.description}</p>
-                )}
+              <div className="min-w-0">
+                <h3 className="font-500 truncate" style={{ color: 'var(--text1)' }}>{p.title}</h3>
+                {p.description && <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text2)' }}>{p.description}</p>}
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 flex-shrink-0 ml-4">
                 <Link
                   to={`/playlists/${p.id}/edit`}
-                  className="text-sm font-medium text-indigo-400 hover:text-indigo-300"
+                  className="text-xs px-3 py-1.5 rounded-lg font-500 transition-colors"
+                  style={{ color: 'var(--text2)', background: 'var(--surface2)', border: '1px solid var(--border)' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text1)' }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text2)' }}
                 >
                   Edit
                 </Link>
                 <Link
                   to={`/playlists/${p.id}/play`}
-                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-lg font-500 transition-colors"
+                  style={{ color: 'var(--green)', background: 'var(--green-muted)', border: '1px solid rgba(52,211,153,0.2)' }}
                 >
-                  Play
+                  ▶ Play
                 </Link>
                 <button
                   onClick={() => handleDelete(p.id)}
-                  className="text-sm text-gray-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                  className="text-xs px-2 py-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                  style={{ color: 'var(--text2)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
                 >
                   Delete
                 </button>

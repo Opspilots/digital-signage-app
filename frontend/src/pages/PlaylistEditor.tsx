@@ -40,61 +40,56 @@ function SortableItem({
     opacity: isDragging ? 0.5 : 1,
   }
 
+  const inputStyle = {
+    background: 'var(--surface)',
+    border: '1px solid var(--border)',
+    borderRadius: 6,
+    padding: '4px 8px',
+    color: 'var(--text1)',
+    fontSize: 12,
+    outline: 'none',
+  }
+  const selectStyle = { ...inputStyle, cursor: 'pointer' }
+
   return (
     <div
       ref={setNodeRef}
-      style={style}
-      className="bg-gray-800 ring-1 ring-gray-700 hover:ring-gray-600 rounded-xl flex items-start gap-3 p-3 transition-colors"
+      style={{ ...style, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', alignItems: 'flex-start', gap: 12, padding: 12, transition: 'border-color 0.15s' }}
+      onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border2)')}
+      onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)')}
     >
-      <button
-        {...attributes}
-        {...listeners}
-        className="mt-1 text-gray-500 hover:text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0 text-lg"
+      <button {...attributes} {...listeners}
+        style={{ color: 'var(--text3)', cursor: 'grab', flexShrink: 0, marginTop: 2, fontSize: 18, lineHeight: 1 }}
         title="Drag to reorder"
-      >
-        ⠿
-      </button>
+      >⠿</button>
 
-      <div className="w-20 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-gray-900">
+      <div style={{ width: 80, height: 52, flexShrink: 0, borderRadius: 8, overflow: 'hidden', background: 'var(--surface2)' }}>
         {item.media_file && (
-          <img
-            src={`${BASE_URL}${item.media_file.thumbnail_url ?? item.media_file.url}`}
-            alt={item.media_file.original_name}
-            className="w-full h-full object-cover"
-          />
+          <img src={`${BASE_URL}${item.media_file.thumbnail_url ?? item.media_file.url}`}
+            alt={item.media_file.original_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         )}
       </div>
 
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-100 truncate">
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 13, fontWeight: 500, color: 'var(--text1)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: 8 }}>
           {item.media_file?.original_name ?? item.media_file_id}
         </p>
-
-        <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2 items-center">
-          <label className="flex items-center gap-1.5 text-xs text-gray-400">
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text2)' }}>
             Duration (s)
-            <input
-              type="number"
-              min={1}
-              value={item.display_duration}
+            <input type="number" min={1} value={item.display_duration}
               onChange={(e) => onUpdate(item.id, 'display_duration', Number(e.target.value))}
-              className="w-16 bg-gray-700 border border-gray-600 rounded-md px-2 py-1 text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
+              style={{ ...inputStyle, width: 56 }} />
           </label>
-
-          <label className="flex items-center gap-1.5 text-xs text-gray-400">
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text2)' }}>
             Transition
-            <select
-              value={item.transition_type}
-              onChange={(e) => onUpdate(item.id, 'transition_type', e.target.value)}
-              className="bg-gray-700 border border-gray-600 rounded-md px-2 py-1 text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            >
+            <select value={item.transition_type} onChange={(e) => onUpdate(item.id, 'transition_type', e.target.value)} style={selectStyle}>
               <option value="none">None</option>
               <option value="fade">Fade</option>
               <option value="slide">Slide</option>
               <option value="zoom-in">Zoom In</option>
               <option value="zoom-out">Zoom Out</option>
-              <option value="slide-left">Slide from Left</option>
+              <option value="slide-left">Slide Left</option>
               <option value="slide-up">Slide Up</option>
               <option value="slide-down">Slide Down</option>
               <option value="blur-in">Blur In</option>
@@ -104,28 +99,19 @@ function SortableItem({
               <option value="wipe-right">Wipe Right</option>
             </select>
           </label>
-
-          <label className="flex items-center gap-1.5 text-xs text-gray-400">
-            Trans. duration (ms)
-            <input
-              type="number"
-              min={0}
-              step={100}
-              value={item.transition_duration}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text2)' }}>
+            Duration (ms)
+            <input type="number" min={0} step={100} value={item.transition_duration}
               onChange={(e) => onUpdate(item.id, 'transition_duration', Number(e.target.value))}
-              className="w-20 bg-gray-700 border border-gray-600 rounded-md px-2 py-1 text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            />
+              style={{ ...inputStyle, width: 68 }} />
           </label>
         </div>
       </div>
 
-      <button
-        onClick={() => onRemove(item.id)}
-        className="text-gray-500 hover:text-red-400 text-xl transition-colors flex-shrink-0 mt-1"
-        title="Remove"
-      >
-        ✕
-      </button>
+      <button onClick={() => onRemove(item.id)} title="Remove" style={{ color: 'var(--text3)', fontSize: 18, flexShrink: 0, marginTop: 2, lineHeight: 1, transition: 'color 0.15s' }}
+        onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
+        onMouseLeave={e => (e.currentTarget.style.color = 'var(--text3)')}
+      >✕</button>
     </div>
   )
 }
@@ -239,120 +225,93 @@ export default function PlaylistEditor() {
     }
   }
 
-  if (loading) {
-    return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-400">Loading…</div>
-  }
-
-  if (!playlist) {
-    return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-red-400">{error ?? 'Not found'}</div>
-  }
+  if (loading) return <div className="p-8 text-sm" style={{ color: 'var(--text2)' }}>Loading…</div>
+  if (!playlist) return <div className="p-8 text-sm" style={{ color: 'var(--red)' }}>{error ?? 'Not found'}</div>
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
-      {/* Page header bar */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="p-8 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-start justify-between mb-6">
         <div>
-          <p className="text-xs text-gray-500 mb-0.5 uppercase tracking-wide">Editing Playlist</p>
-          <h1 className="text-2xl font-bold text-gray-100">{titleDraft || 'Untitled'}</h1>
+          <p className="text-xs font-500 uppercase tracking-widest mb-1" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>
+            Editing Playlist
+          </p>
+          <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>
+            {titleDraft || 'Untitled'}
+          </h1>
         </div>
-        <div className="flex gap-3">
-          <button
-            onClick={handleSave}
-            disabled={saving || !dirty}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
-          >
+        <div className="flex gap-2">
+          <button onClick={handleSave} disabled={saving || !dirty} className="ds-btn" style={{ opacity: (!dirty || saving) ? 0.4 : 1 }}>
             {saving ? 'Saving…' : 'Save'}
           </button>
-          <Link
-            to={`/playlists/${id}/play`}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-          >
+          <Link to={`/playlists/${id}/play`} className="ds-btn"
+            style={{ background: 'var(--green-muted)', color: 'var(--green)', border: '1px solid rgba(52,211,153,0.2)' }}>
             ▶ Play
           </Link>
         </div>
       </div>
 
       {error && (
-        <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-4 text-sm">
+        <div className="rounded-lg px-4 py-3 text-sm mb-4" style={{ background: 'var(--red-muted)', border: '1px solid rgba(248,113,113,0.15)', color: 'var(--red)' }}>
           {error}
         </div>
       )}
 
-      {/* Metadata panel */}
-      <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 mb-6">
-        <input
-          type="text"
-          value={titleDraft}
+      {/* Metadata */}
+      <div className="ds-card p-5 mb-6">
+        <input type="text" value={titleDraft}
           onChange={(e) => { setTitleDraft(e.target.value); setDirty(true) }}
-          className="w-full text-2xl font-bold text-gray-100 bg-transparent border-0 border-b border-gray-700 focus:border-indigo-500 focus:outline-none pb-1 mb-3"
-          placeholder="Playlist title"
-        />
-        <textarea
-          value={descDraft}
-          onChange={(e) => { setDescDraft(e.target.value); setDirty(true) }}
-          className="w-full text-sm text-gray-400 bg-transparent border-0 focus:outline-none resize-none"
-          placeholder="Description (optional)"
-          rows={2}
-        />
+          className="w-full font-display font-600 text-xl bg-transparent focus:outline-none pb-2 mb-3"
+          style={{ color: 'var(--text1)', borderBottom: '1px solid var(--border)', letterSpacing: '-0.01em' }}
+          placeholder="Playlist title" />
+        <textarea value={descDraft} onChange={(e) => { setDescDraft(e.target.value); setDirty(true) }}
+          className="w-full text-sm bg-transparent focus:outline-none resize-none"
+          style={{ color: 'var(--text2)' }} placeholder="Description (optional)" rows={2} />
       </div>
 
-      {/* Items section header */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-gray-100">
-          Items <span className="text-gray-500 font-normal text-base">({items.length})</span>
-        </h2>
-        <button
-          onClick={() => setShowMedia(!showMedia)}
-          className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-        >
-          + Add Media
-        </button>
+      {/* Items header */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-3">
+          <p className="text-xs font-500 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>
+            Items
+          </p>
+          <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>
+            {items.length}
+          </span>
+          <div className="h-px flex-1" style={{ background: 'var(--border)' }} />
+        </div>
+        <button onClick={() => setShowMedia(!showMedia)} className="ds-btn ml-4">+ Add Media</button>
       </div>
 
-      {/* Media picker panel */}
+      {/* Media picker */}
       {showMedia && (
-        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl mb-6 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
-            <span className="text-sm font-medium text-gray-200">Select media to add</span>
-            <button
-              onClick={() => setShowMedia(false)}
-              className="text-gray-400 hover:text-gray-200 text-lg leading-none transition-colors"
+        <div className="ds-card mb-6 overflow-hidden animate-slide-up">
+          <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+            <span className="text-sm font-500" style={{ color: 'var(--text1)' }}>Select media</span>
+            <button onClick={() => setShowMedia(false)} style={{ color: 'var(--text2)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text1)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
             >
-              ×
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
           </div>
-          <div className="max-h-96 overflow-y-auto bg-gray-900">
-            <MediaLibrary
-              selectionMode
-              selectedIds={new Set(items.map((i) => i.media_file_id))}
-              onSelect={(file) => {
-                handleMediaSelect(file)
-              }}
-            />
+          <div style={{ maxHeight: 380, overflowY: 'auto', background: 'var(--surface2)' }}>
+            <MediaLibrary selectionMode selectedIds={new Set(items.map((i) => i.media_file_id))} onSelect={handleMediaSelect} />
           </div>
         </div>
       )}
 
       {/* Items list */}
       {items.length === 0 ? (
-        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl px-5 py-12 text-center text-gray-500">
-          No items yet. Click "+ Add Media" to get started.
+        <div className="ds-card px-5 py-12 text-center animate-fade-in">
+          <p className="text-sm" style={{ color: 'var(--text2)' }}>No items yet. Click "+ Add Media" to get started.</p>
         </div>
       ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
           <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-            <div className="space-y-2">
+            <div className="space-y-2 animate-fade-in">
               {items.map((item) => (
-                <SortableItem
-                  key={item.id}
-                  item={item}
-                  onUpdate={handleItemUpdate}
-                  onRemove={handleItemRemove}
-                />
+                <SortableItem key={item.id} item={item} onUpdate={handleItemUpdate} onRemove={handleItemRemove} />
               ))}
             </div>
           </SortableContext>

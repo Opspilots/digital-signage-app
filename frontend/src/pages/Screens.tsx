@@ -1,47 +1,37 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { screenApi, playlistApi } from '../api/client'
 import type { Screen, Playlist } from '../api/types'
-import { logout } from '../auth'
 import { useBluetooth, type DiscoveredDevice } from '../hooks/useBluetooth'
 
 function formatLastSeen(lastSeenAt: string | null | undefined): string {
   if (!lastSeenAt) return 'Never'
-  const diff = Date.now() - new Date(lastSeenAt).getTime()
+  const diff    = Date.now() - new Date(lastSeenAt).getTime()
   const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return `${seconds}s ago`
+  if (seconds < 60)  return `${seconds}s ago`
   const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  return `${hours}h ago`
+  if (minutes < 60)  return `${minutes}m ago`
+  return `${Math.floor(minutes / 60)}h ago`
 }
 
 export default function Screens() {
-  const navigate = useNavigate()
-  const [screens, setScreens] = useState<Screen[]>([])
-  const [playlists, setPlaylists] = useState<Playlist[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [creating, setCreating] = useState(false)
-  const [newName, setNewName] = useState('')
-  const [newLocation, setNewLocation] = useState('')
-  const [copiedToken, setCopiedToken] = useState<string | null>(null)
-  const [copiedUrl, setCopiedUrl] = useState<string | null>(null)
+  const [screens,    setScreens]    = useState<Screen[]>([])
+  const [playlists,  setPlaylists]  = useState<Playlist[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState<string | null>(null)
+  const [creating,   setCreating]   = useState(false)
+  const [newName,    setNewName]    = useState('')
+  const [newLocation,setNewLocation]= useState('')
+  const [copiedId,   setCopiedId]   = useState<string | null>(null)
 
-  // Bluetooth discovery state
   const { isSupported: btSupported, isScanning, devices: btDevices, error: btError, scanForDevices, clearDevices } = useBluetooth()
-  const [showBtModal, setShowBtModal] = useState(false)
+  const [showBtModal,       setShowBtModal]       = useState(false)
   const [registeringDevice, setRegisteringDevice] = useState<string | null>(null)
   const [registeredDevices, setRegisteredDevices] = useState<Set<string>>(new Set())
-  const [showBtTooltip, setShowBtTooltip] = useState(false)
 
   const load = () => {
-    setLoading(true)
     Promise.all([screenApi.list(), playlistApi.list()])
-      .then(([s, p]) => {
-        setScreens(s)
-        setPlaylists(p)
-      })
+      .then(([s, p]) => { setScreens(s); setPlaylists(p) })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }
@@ -58,12 +48,8 @@ export default function Screens() {
     try {
       const s = await screenApi.create({ name: newName.trim(), location: newLocation.trim() || undefined })
       setScreens((prev) => [s, ...prev])
-      setNewName('')
-      setNewLocation('')
-      setCreating(false)
-    } catch (e) {
-      setError(String(e))
-    }
+      setNewName(''); setNewLocation(''); setCreating(false)
+    } catch (e) { setError(String(e)) }
   }
 
   const handleDelete = async (id: string) => {
@@ -71,51 +57,30 @@ export default function Screens() {
     try {
       await screenApi.delete(id)
       setScreens((prev) => prev.filter((s) => s.id !== id))
-    } catch (e) {
-      setError(String(e))
-    }
+    } catch (e) { setError(String(e)) }
   }
 
   const handleAssignPlaylist = async (screenId: string, playlistId: string | null) => {
     try {
       const updated = await screenApi.update(screenId, { current_playlist_id: playlistId })
       setScreens((prev) => prev.map((s) => (s.id === screenId ? updated : s)))
-    } catch (e) {
-      setError(String(e))
-    }
+    } catch (e) { setError(String(e)) }
   }
 
-  const handleCopyToken = (token: string) => {
-    navigator.clipboard.writeText(token).then(() => {
-      setCopiedToken(token)
-      setTimeout(() => setCopiedToken(null), 2000)
+  const getPlayerUrl = (screen: Screen) =>
+    screen.current_playlist_id
+      ? `${window.location.origin}/playlists/${screen.current_playlist_id}/play?screen=${screen.token}`
+      : null
+
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id)
+      setTimeout(() => setCopiedId(null), 2000)
     })
   }
 
-  const getPlayerUrl = (screen: Screen) => {
-    if (!screen.current_playlist_id) return null
-    return `${window.location.origin}/playlists/${screen.current_playlist_id}/play?screen=${screen.token}`
-  }
-
-  const handleCopyPlayerUrl = (screen: Screen) => {
-    const url = getPlayerUrl(screen)
-    if (!url) return
-    navigator.clipboard.writeText(url).then(() => {
-      setCopiedUrl(screen.id)
-      setTimeout(() => setCopiedUrl(null), 2000)
-    })
-  }
-
-  const handleOpenBtModal = () => {
-    clearDevices()
-    setRegisteredDevices(new Set())
-    setShowBtModal(true)
-  }
-
-  const handleCloseBtModal = () => {
-    setShowBtModal(false)
-    clearDevices()
-  }
+  const handleOpenBt = () => { clearDevices(); setRegisteredDevices(new Set()); setShowBtModal(true) }
+  const handleCloseBt = () => { setShowBtModal(false); clearDevices() }
 
   const handleRegisterDevice = async (device: DiscoveredDevice) => {
     setRegisteringDevice(device.id)
@@ -123,285 +88,217 @@ export default function Screens() {
       const s = await screenApi.create({ name: device.name })
       setScreens((prev) => [s, ...prev])
       setRegisteredDevices((prev) => new Set([...prev, device.id]))
-    } catch (e) {
-      setError(String(e))
-    } finally {
-      setRegisteringDevice(null)
-    }
+    } catch (e) { setError(String(e)) }
+    finally { setRegisteringDevice(null) }
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Digital Signage</h1>
-        <div className="flex items-center gap-4">
-          <Link to="/" className="text-sm text-blue-600 hover:text-blue-800 font-medium">Playlists</Link>
-          <Link to="/media" className="text-sm text-blue-600 hover:text-blue-800 font-medium">Media Library</Link>
-          <button
-            onClick={() => { logout(); navigate('/login') }}
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
-            Sign out
-          </button>
+    <div className="p-8 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>Screens</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>
+            {screens.filter(s => s.online).length} of {screens.length} online
+          </p>
         </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">Screens</h2>
-          <div className="flex items-center gap-2">
-            {btSupported && (
-              <div className="relative flex items-center">
-                <button
-                  onClick={handleOpenBtModal}
-                  className="flex items-center gap-1.5 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 hover:border-gray-400 transition-colors"
-                >
-                  <svg className="w-4 h-4 text-blue-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M17.71 7.71 12 2h-1v7.59L6.41 5 5 6.41l5.59 5.59L5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/>
-                  </svg>
-                  Discover via Bluetooth
-                </button>
-                <button
-                  onMouseEnter={() => setShowBtTooltip(true)}
-                  onMouseLeave={() => setShowBtTooltip(false)}
-                  onFocus={() => setShowBtTooltip(true)}
-                  onBlur={() => setShowBtTooltip(false)}
-                  aria-label="Bluetooth information"
-                  className="ml-1 w-5 h-5 rounded-full bg-gray-200 text-gray-500 text-xs font-bold flex items-center justify-center hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  i
-                </button>
-                {showBtTooltip && (
-                  <div className="absolute right-0 top-8 z-10 w-64 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg">
-                    Bluetooth scanning requires a secure context (HTTPS or localhost). It will not work on plain HTTP pages.
-                    <div className="absolute -top-1.5 right-6 w-3 h-3 bg-gray-900 rotate-45" />
-                  </div>
-                )}
-              </div>
-            )}
+        <div className="flex gap-2">
+          {btSupported && (
             <button
-              onClick={() => setCreating(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+              onClick={handleOpenBt}
+              className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-500 transition-colors"
+              style={{ color: 'var(--text2)', background: 'var(--surface2)', border: '1px solid var(--border)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--text1)')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
             >
-              + Register Screen
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17.71 7.71 12 2h-1v7.59L6.41 5 5 6.41l5.59 5.59L5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/>
+              </svg>
+              Bluetooth
             </button>
-          </div>
+          )}
+          <button onClick={() => setCreating(true)} className="ds-btn">+ Register Screen</button>
         </div>
+      </div>
 
-        {creating && (
-          <form
-            onSubmit={handleCreate}
-            className="bg-white border border-gray-200 rounded-lg p-4 mb-4 flex flex-col gap-3"
-          >
-            <div className="flex gap-3">
-              <input
-                autoFocus
-                type="text"
-                placeholder="Screen name (e.g. Lobby TV)"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-              <input
-                type="text"
-                placeholder="Location (optional)"
-                value={newLocation}
-                onChange={(e) => setNewLocation(e.target.value)}
-                className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-            <div className="flex gap-2">
-              <button
-                type="submit"
-                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700"
-              >
-                Register
-              </button>
-              <button
-                type="button"
-                onClick={() => { setCreating(false); setNewName(''); setNewLocation('') }}
-                className="text-gray-500 px-3 py-2 rounded-md text-sm hover:bg-gray-100"
-              >
-                Cancel
-              </button>
-            </div>
-          </form>
-        )}
-
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
-            {error}
+      {creating && (
+        <form onSubmit={handleCreate} className="ds-card p-4 mb-4 animate-slide-up">
+          <div className="flex gap-3 mb-3">
+            <input autoFocus type="text" placeholder="Screen name (e.g. Lobby TV)" value={newName}
+              onChange={(e) => setNewName(e.target.value)} className="ds-input" />
+            <input type="text" placeholder="Location (optional)" value={newLocation}
+              onChange={(e) => setNewLocation(e.target.value)} className="ds-input" />
           </div>
-        )}
-
-        {loading ? (
-          <div className="text-center text-gray-500 py-12">Loading…</div>
-        ) : screens.length === 0 ? (
-          <div className="text-center text-gray-400 py-12">
-            No screens registered yet. Register one to get started.
+          <div className="flex gap-2">
+            <button type="submit" className="ds-btn">Register</button>
+            <button type="button" onClick={() => { setCreating(false); setNewName(''); setNewLocation('') }}
+              className="text-sm px-3 py-2 rounded-lg" style={{ color: 'var(--text2)' }}>Cancel</button>
           </div>
-        ) : (
-          <ul className="space-y-3">
-            {screens.map((screen) => (
-              <li
-                key={screen.id}
-                className="bg-white border border-gray-200 rounded-lg px-5 py-4"
+        </form>
+      )}
+
+      {error && (
+        <div className="rounded-lg px-4 py-3 text-sm mb-4" style={{ background: 'var(--red-muted)', border: '1px solid rgba(248,113,113,0.15)', color: 'var(--red)' }}>
+          {error}
+        </div>
+      )}
+
+      {/* How to connect guide */}
+      {!loading && screens.length === 0 && (
+        <div className="ds-card p-6 mb-4 animate-fade-in">
+          <p className="font-display font-600 mb-3" style={{ color: 'var(--text1)' }}>How to connect a screen</p>
+          <ol className="space-y-2 text-sm" style={{ color: 'var(--text2)' }}>
+            <li className="flex gap-3"><span className="font-mono text-xs px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5" style={{ background: 'var(--cyan-muted)', color: 'var(--cyan)' }}>1</span> Click <strong style={{ color: 'var(--text1)' }}>Register Screen</strong> and give it a name.</li>
+            <li className="flex gap-3"><span className="font-mono text-xs px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5" style={{ background: 'var(--cyan-muted)', color: 'var(--cyan)' }}>2</span> Assign a playlist to the screen.</li>
+            <li className="flex gap-3"><span className="font-mono text-xs px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5" style={{ background: 'var(--cyan-muted)', color: 'var(--cyan)' }}>3</span> Copy the player URL and open it on the screen device (TV, tablet, Raspberry Pi…).</li>
+            <li className="flex gap-3"><span className="font-mono text-xs px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5" style={{ background: 'var(--cyan-muted)', color: 'var(--cyan)' }}>4</span> The screen goes <strong style={{ color: 'var(--green)' }}>Online</strong> automatically and starts playing.</li>
+          </ol>
+        </div>
+      )}
+
+      {loading ? (
+        <div className="py-12 text-center text-sm" style={{ color: 'var(--text2)' }}>Loading…</div>
+      ) : (
+        <ul className="space-y-3 animate-fade-in">
+          {screens.map((screen) => {
+            const playerUrl = getPlayerUrl(screen)
+            return (
+              <li key={screen.id} className="ds-card p-5 transition-colors"
+                onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border2)')}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
-                          screen.online ? 'bg-green-500' : 'bg-gray-300'
-                        }`}
-                      />
-                      <h3 className="font-medium text-gray-900 truncate">{screen.name}</h3>
-                      {screen.location && (
-                        <span className="text-xs text-gray-400 truncate">· {screen.location}</span>
-                      )}
-                      <span className={`text-xs font-medium ${screen.online ? 'text-green-600' : 'text-gray-400'}`}>
-                        {screen.online ? 'Online' : 'Offline'}
-                      </span>
+                {/* Top row */}
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="relative flex-shrink-0">
+                      <div className={`w-2.5 h-2.5 rounded-full ${screen.online ? 'pulse-online' : ''}`}
+                        style={{ background: screen.online ? 'var(--green)' : 'var(--border2)' }} />
                     </div>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Last seen: {formatLastSeen(screen.last_seen_at)}
-                    </p>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-600 truncate" style={{ color: 'var(--text1)' }}>{screen.name}</h3>
+                        {screen.location && <span className="text-xs truncate" style={{ color: 'var(--text2)' }}>· {screen.location}</span>}
+                        <span className="text-xs font-500" style={{ color: screen.online ? 'var(--green)' : 'var(--text3)' }}>
+                          {screen.online ? 'Online' : 'Offline'}
+                        </span>
+                      </div>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--text2)' }}>
+                        Last seen: {formatLastSeen(screen.last_seen_at)}
+                      </p>
+                    </div>
                   </div>
 
-                  <div className="flex items-center gap-3 flex-shrink-0 flex-wrap justify-end">
-                    <select
-                      value={screen.current_playlist_id ?? ''}
-                      onChange={(e) => handleAssignPlaylist(screen.id, e.target.value || null)}
-                      className="text-sm border border-gray-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">No playlist</option>
-                      {playlists.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.title}
-                        </option>
-                      ))}
-                    </select>
-                    {screen.current_playlist_id ? (
-                      <>
-                        <a
-                          href={getPlayerUrl(screen) ?? '#'}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-medium bg-green-600 text-white hover:bg-green-700 rounded px-3 py-1 transition-colors"
-                          title="Open player in new tab"
-                        >
-                          ▶ Launch
-                        </a>
-                        <button
-                          onClick={() => handleCopyPlayerUrl(screen)}
-                          className="text-sm text-gray-500 hover:text-gray-700 bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs"
-                          title="Copy player URL"
-                        >
-                          {copiedUrl === screen.id ? '✓ URL copied' : 'Copy URL'}
-                        </button>
-                      </>
-                    ) : (
-                      <span className="text-xs text-gray-400 italic">Assign a playlist to launch</span>
-                    )}
-                    <button
-                      onClick={() => handleCopyToken(screen.token)}
-                      className="text-sm text-gray-500 hover:text-gray-700 font-mono bg-gray-50 border border-gray-200 rounded px-2 py-1 text-xs"
-                      title="Copy screen token"
-                    >
-                      {copiedToken === screen.token ? '✓ Copied' : 'Copy token'}
-                    </button>
-                    <Link
-                      to={`/screens/${screen.id}/schedules`}
-                      state={{ screenName: screen.name }}
-                      className="text-sm text-indigo-500 hover:text-indigo-700 font-medium"
+                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                    <Link to={`/screens/${screen.id}/schedules`}
+                      className="text-xs px-2.5 py-1.5 rounded-lg font-500 transition-colors"
+                      style={{ color: 'var(--text2)', border: '1px solid var(--border)' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--cyan)'; (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--cyan-dim)' }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text2)'; (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--border)' }}
                     >
                       Schedules
                     </Link>
-                    <button
-                      onClick={() => handleDelete(screen.id)}
-                      className="text-sm text-red-500 hover:text-red-700"
-                    >
-                      Delete
-                    </button>
+                    <button onClick={() => handleDelete(screen.id)}
+                      className="text-xs px-2.5 py-1.5 rounded-lg transition-colors"
+                      style={{ color: 'var(--text2)' }}
+                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
+                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
+                    >Delete</button>
                   </div>
                 </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </main>
 
-      {/* Bluetooth Discovery Modal */}
+                {/* Bottom row — playlist + actions */}
+                <div className="flex items-center gap-3 flex-wrap pt-3" style={{ borderTop: '1px solid var(--border)' }}>
+                  <select
+                    value={screen.current_playlist_id ?? ''}
+                    onChange={(e) => handleAssignPlaylist(screen.id, e.target.value || null)}
+                    className="text-xs rounded-lg px-2.5 py-1.5 font-500"
+                    style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text1)', outline: 'none' }}
+                  >
+                    <option value="">No playlist assigned</option>
+                    {playlists.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
+                  </select>
+
+                  {playerUrl ? (
+                    <>
+                      <a href={playerUrl} target="_blank" rel="noopener noreferrer"
+                        className="text-xs px-3 py-1.5 rounded-lg font-500 transition-colors"
+                        style={{ color: 'var(--green)', background: 'var(--green-muted)', border: '1px solid rgba(52,211,153,0.2)' }}
+                      >
+                        ▶ Launch
+                      </a>
+                      <button onClick={() => handleCopy(playerUrl, `url-${screen.id}`)}
+                        className="text-xs px-2.5 py-1.5 rounded-lg transition-colors"
+                        style={{ color: 'var(--text2)', background: 'var(--surface2)', border: '1px solid var(--border)' }}
+                      >
+                        {copiedId === `url-${screen.id}` ? '✓ Copied' : 'Copy URL'}
+                      </button>
+                    </>
+                  ) : (
+                    <span className="text-xs italic" style={{ color: 'var(--text3)' }}>Assign a playlist to launch</span>
+                  )}
+
+                  <button onClick={() => handleCopy(screen.token, `tok-${screen.id}`)}
+                    className="text-xs px-2.5 py-1.5 rounded-lg font-mono ml-auto"
+                    style={{ color: 'var(--text2)', background: 'var(--surface2)', border: '1px solid var(--border)' }}
+                    title="Copy screen token"
+                  >
+                    {copiedId === `tok-${screen.id}` ? '✓ Token copied' : 'Copy token'}
+                  </button>
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
+
+      {/* Bluetooth Modal */}
       {showBtModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="bt-modal-title"
-        >
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 flex flex-col max-h-[80vh]">
-            {/* Modal header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-              <h3 id="bt-modal-title" className="text-base font-semibold text-gray-900 flex items-center gap-2">
-                <svg className="w-5 h-5 text-blue-500" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M17.71 7.71 12 2h-1v7.59L6.41 5 5 6.41l5.59 5.59L5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/>
-                </svg>
-                Bluetooth Screen Discovery
-              </h3>
-              <button
-                onClick={handleCloseBtModal}
-                className="text-gray-400 hover:text-gray-600 text-xl leading-none focus:outline-none focus:ring-2 focus:ring-blue-500 rounded"
-                aria-label="Close"
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+          <div className="ds-card w-full max-w-md mx-4 flex flex-col animate-slide-up" style={{ maxHeight: '80vh' }}>
+            <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h3 className="font-display font-600" style={{ color: 'var(--text1)' }}>Bluetooth Discovery</h3>
+              <button onClick={handleCloseBt} style={{ color: 'var(--text2)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--text1)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
               >
-                ×
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
 
-            {/* Modal body */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              <p className="text-sm text-gray-500 mb-4">
-                Click <strong>Scan</strong> to open the browser Bluetooth picker. Select a nearby
-                screen device to add it to your list.
-              </p>
+              <div className="rounded-lg p-3 mb-4 text-xs" style={{ background: 'var(--amber-muted)', border: '1px solid rgba(245,158,11,0.2)', color: 'var(--amber)' }}>
+                ⚡ Requires Chrome or Edge + HTTPS. The screen device must be BLE-advertising. For most TVs and monitors, use <strong>Register Screen</strong> manually instead.
+              </div>
 
               {btError && (
-                <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded-lg text-sm mb-4">
-                  {btError}
-                </div>
+                <div className="rounded-lg px-3 py-2 text-sm mb-4" style={{ background: 'var(--red-muted)', color: 'var(--red)' }}>{btError}</div>
               )}
 
               {btDevices.length === 0 && !isScanning && !btError && (
-                <div className="text-center text-gray-400 py-6 text-sm">
-                  No devices found yet. Click Scan to start.
-                </div>
+                <p className="text-sm text-center py-6" style={{ color: 'var(--text2)' }}>No devices found. Click Scan to start.</p>
               )}
 
               {btDevices.length > 0 && (
                 <ul className="space-y-2">
                   {btDevices.map((device) => {
-                    const alreadyRegistered = registeredDevices.has(device.id)
-                    const isRegistering = registeringDevice === device.id
+                    const alreadyReg = registeredDevices.has(device.id)
+                    const isReg      = registeringDevice === device.id
                     return (
-                      <li
-                        key={device.id}
-                        className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-lg px-4 py-3"
-                      >
+                      <li key={device.id} className="flex items-center justify-between rounded-lg px-4 py-3" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{device.name}</p>
-                          <p className="text-xs text-gray-400 font-mono truncate">{device.id}</p>
+                          <p className="text-sm font-500 truncate" style={{ color: 'var(--text1)' }}>{device.name}</p>
+                          <p className="text-xs font-mono truncate" style={{ color: 'var(--text2)' }}>{device.id}</p>
                         </div>
                         <button
                           onClick={() => handleRegisterDevice(device)}
-                          disabled={alreadyRegistered || isRegistering}
-                          className={`ml-3 flex-shrink-0 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                            alreadyRegistered
-                              ? 'bg-green-100 text-green-700 cursor-default'
-                              : isRegistering
-                              ? 'bg-blue-100 text-blue-500 cursor-wait'
-                              : 'bg-blue-600 text-white hover:bg-blue-700'
-                          }`}
+                          disabled={alreadyReg || isReg}
+                          className="ml-3 flex-shrink-0 text-xs px-3 py-1.5 rounded-lg font-500 transition-colors disabled:opacity-50"
+                          style={alreadyReg
+                            ? { background: 'var(--green-muted)', color: 'var(--green)' }
+                            : { background: 'var(--cyan-muted)', color: 'var(--cyan)' }
+                          }
                         >
-                          {alreadyRegistered ? 'Registered' : isRegistering ? 'Registering…' : 'Register as Screen'}
+                          {alreadyReg ? 'Registered ✓' : isReg ? 'Registering…' : 'Register'}
                         </button>
                       </li>
                     )
@@ -410,36 +307,11 @@ export default function Screens() {
               )}
             </div>
 
-            {/* Modal footer */}
-            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 gap-3">
-              <p className="text-xs text-gray-400">
-                Requires HTTPS or localhost
-              </p>
-              <div className="flex gap-2">
-                <button
-                  onClick={handleCloseBtModal}
-                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  Close
-                </button>
-                <button
-                  onClick={scanForDevices}
-                  disabled={isScanning}
-                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-60 disabled:cursor-wait transition-colors"
-                >
-                  {isScanning ? (
-                    <>
-                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-                        <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
-                        <path d="M12 2a10 10 0 0 1 10 10" />
-                      </svg>
-                      Scanning…
-                    </>
-                  ) : (
-                    'Scan'
-                  )}
-                </button>
-              </div>
+            <div className="flex items-center justify-end gap-3 px-6 py-4" style={{ borderTop: '1px solid var(--border)' }}>
+              <button onClick={handleCloseBt} className="text-sm px-4 py-2 rounded-lg" style={{ color: 'var(--text2)' }}>Close</button>
+              <button onClick={scanForDevices} disabled={isScanning} className="ds-btn">
+                {isScanning ? 'Scanning…' : 'Scan'}
+              </button>
             </div>
           </div>
         </div>

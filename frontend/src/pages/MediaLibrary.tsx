@@ -9,20 +9,17 @@ interface Props {
 }
 
 export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: Props) {
-  const [files, setFiles] = useState<MediaFile[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [files,     setFiles]     = useState<MediaFile[]>([])
+  const [loading,   setLoading]   = useState(true)
+  const [error,     setError]     = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
-  const [dragOver, setDragOver] = useState(false)
+  const [dragOver,  setDragOver]  = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
   const load = useCallback(() => {
     setLoading(true)
-    mediaApi
-      .list()
-      .then(setFiles)
-      .catch((e) => setError(String(e)))
-      .finally(() => setLoading(false))
+    mediaApi.list().then(setFiles).catch((e) => setError(String(e))).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -32,11 +29,8 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
     try {
       const uploaded = await Promise.all(filesToUpload.map((f) => mediaApi.upload(f)))
       setFiles((prev) => [...uploaded, ...prev])
-    } catch (e) {
-      setError(String(e))
-    } finally {
-      setUploading(false)
-    }
+    } catch (e) { setError(String(e)) }
+    finally { setUploading(false) }
   }
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -48,8 +42,8 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault()
     setDragOver(false)
-    const dropped = Array.from(e.dataTransfer.files).filter((f) =>
-      f.type.startsWith('image/') || f.type.startsWith('video/')
+    const dropped = Array.from(e.dataTransfer.files).filter(
+      (f) => f.type.startsWith('image/') || f.type.startsWith('video/')
     )
     if (dropped.length) uploadFiles(dropped)
   }
@@ -59,108 +53,134 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
     try {
       await mediaApi.delete(id)
       setFiles((prev) => prev.filter((f) => f.id !== id))
-    } catch (e) {
-      setError(String(e))
-    }
+    } catch (e) { setError(String(e)) }
   }
 
-  const BASE_URL = import.meta.env.VITE_API_URL ?? ''
+  const isVideo = (f: MediaFile) => f.mime_type.startsWith('video/')
+
+  const ext = (f: MediaFile) => {
+    const parts = f.original_name.split('.')
+    return parts.length > 1 ? parts[parts.length - 1].toUpperCase() : '?'
+  }
 
   return (
-    <div className={selectionMode ? '' : 'p-6 max-w-6xl mx-auto'}>
+    <div className={selectionMode ? '' : 'p-8 max-w-6xl mx-auto'}>
       {!selectionMode && (
         <div className="flex items-center justify-between mb-8">
-          <h1 className="text-2xl font-bold text-gray-100">Media Library</h1>
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
-          >
+          <div>
+            <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>
+              Media Library
+            </h1>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{files.length} file{files.length !== 1 ? 's' : ''}</p>
+          </div>
+          <button onClick={() => fileInputRef.current?.click()} className="ds-btn">
             Upload
           </button>
         </div>
       )}
 
       {selectionMode && (
-        <p className="text-sm text-indigo-400 font-medium mb-4 px-4 pt-4">
-          Click items to add them to the playlist
+        <p className="text-xs font-500 px-4 pt-4 mb-3 uppercase tracking-widest" style={{ color: 'var(--cyan)', letterSpacing: '0.08em' }}>
+          Click to add to playlist
         </p>
       )}
 
-      {/* Dropzone */}
+      {/* Drop zone */}
       <div
-        className={`border-2 border-dashed rounded-xl p-10 mb-6 text-center cursor-pointer transition-colors ${
-          dragOver
-            ? 'border-indigo-500 bg-indigo-950/30'
-            : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
-        } ${selectionMode ? 'mx-4' : ''}`}
+        className={`border-2 border-dashed rounded-xl text-center cursor-pointer transition-colors mb-6 ${selectionMode ? 'mx-4 p-6' : 'p-10'}`}
+        style={{
+          borderColor: dragOver ? 'var(--cyan-dim)' : 'var(--border)',
+          background:  dragOver ? 'var(--cyan-muted)' : 'var(--surface2)',
+        }}
         onClick={() => fileInputRef.current?.click()}
         onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,video/*"
-          multiple
-          className="hidden"
-          onChange={handleFileInput}
-        />
-        <p className="text-gray-400 text-sm">
-          {uploading ? 'Uploading…' : 'Drop files here or click to upload (images & videos)'}
-        </p>
+        <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileInput} />
+        <div className="flex flex-col items-center gap-2">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: dragOver ? 'var(--cyan)' : 'var(--text2)' }}>
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+            <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+          <p className="text-sm" style={{ color: dragOver ? 'var(--cyan)' : 'var(--text2)' }}>
+            {uploading ? 'Uploading…' : 'Drop files or click to upload'}
+          </p>
+          <p className="text-xs" style={{ color: 'var(--text3)' }}>Images & videos</p>
+        </div>
       </div>
 
       {error && (
-        <div className={`bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-4 text-sm ${selectionMode ? 'mx-4' : ''}`}>
+        <div className={`rounded-lg px-4 py-3 text-sm mb-4 ${selectionMode ? 'mx-4' : ''}`}
+          style={{ background: 'var(--red-muted)', border: '1px solid rgba(248,113,113,0.15)', color: 'var(--red)' }}>
           {error}
         </div>
       )}
 
       {loading ? (
-        <div className="text-center text-gray-400 py-12">Loading…</div>
+        <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>Loading…</div>
       ) : files.length === 0 ? (
-        <div className="text-center text-gray-500 py-12">No media files yet.</div>
+        <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>No media yet.</div>
       ) : (
-        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 ${selectionMode ? 'px-4 pb-4' : ''}`}>
+        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 ${selectionMode ? 'px-4 pb-4' : ''}`}>
           {files.map((file) => {
             const selected = selectedIds?.has(file.id)
             return (
               <div
                 key={file.id}
-                className={`relative group rounded-xl overflow-hidden ring-2 transition-all cursor-pointer ${
-                  selected
-                    ? 'ring-indigo-500'
-                    : 'ring-gray-700 hover:ring-gray-500'
-                }`}
+                className="relative group rounded-xl overflow-hidden cursor-pointer transition-all"
+                style={{
+                  border: selected ? '2px solid var(--cyan)' : '1px solid var(--border)',
+                  background: 'var(--surface)',
+                  boxShadow: selected ? '0 0 0 1px var(--cyan)' : 'none',
+                }}
                 onClick={() => selectionMode && onSelect?.(file)}
+                onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border2)' }}
+                onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)' }}
               >
-                <img
-                  src={`${BASE_URL}${file.thumbnail_url ?? file.url}`}
-                  alt={file.original_name}
-                  className="w-full aspect-video object-cover bg-gray-900"
-                />
-
-                {selected && (
-                  <div className="absolute top-2 right-2 bg-indigo-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
-                    ✓
+                {/* Thumbnail */}
+                <div className="aspect-video relative overflow-hidden" style={{ background: 'var(--surface2)' }}>
+                  <img
+                    src={`${BASE_URL}${file.thumbnail_url ?? file.url}`}
+                    alt={file.original_name}
+                    className="w-full h-full object-cover"
+                  />
+                  {/* Type badge */}
+                  <div className="absolute top-2 left-2">
+                    <span className="text-xs font-mono px-1.5 py-0.5 rounded font-500"
+                      style={{
+                        background: isVideo(file) ? 'rgba(34,211,238,0.15)' : 'rgba(52,211,153,0.15)',
+                        color: isVideo(file) ? 'var(--cyan)' : 'var(--green)',
+                        backdropFilter: 'blur(4px)',
+                      }}>
+                      {isVideo(file) ? '▶' : '⬜'} {ext(file)}
+                    </span>
                   </div>
-                )}
+                  {selected && (
+                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs font-700"
+                      style={{ background: 'var(--cyan)', color: '#000' }}>✓</div>
+                  )}
+                  {/* Delete overlay */}
+                  {!selectionMode && (
+                    <div className="absolute inset-0 flex items-end justify-start p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%)' }}>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(file.id) }}
+                        className="text-xs px-2 py-1 rounded-lg font-500"
+                        style={{ background: 'var(--red-muted)', color: 'var(--red)', border: '1px solid rgba(248,113,113,0.3)' }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-                <div className="px-2.5 py-2 bg-gray-900">
-                  <p className="text-xs text-gray-300 truncate" title={file.original_name}>
+                {/* Filename */}
+                <div className="px-2.5 py-2" style={{ borderTop: '1px solid var(--border)' }}>
+                  <p className="text-xs truncate font-500" style={{ color: 'var(--text1)' }} title={file.original_name}>
                     {file.original_name}
                   </p>
                 </div>
-
-                {!selectionMode && (
-                  <button
-                    onClick={(e) => { e.stopPropagation(); handleDelete(file.id) }}
-                    className="absolute top-2 left-2 bg-red-600 hover:bg-red-500 text-white text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    Delete
-                  </button>
-                )}
               </div>
             )
           })}
