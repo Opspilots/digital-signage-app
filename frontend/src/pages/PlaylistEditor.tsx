@@ -22,6 +22,22 @@ import type { Playlist, PlaylistItem } from '../api/types'
 import MediaLibrary from './MediaLibrary'
 import type { MediaFile } from '../api/types'
 
+const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
+const DAY_BITS   = [1, 2, 4, 8, 16, 32, 64]
+
+function scheduleSummary(item: PlaylistItem): string {
+  const mask = item.days_of_week ?? 0
+  const hasTime = item.start_time || item.end_time
+  if (mask === 0 && !hasTime) return 'Siempre'
+  const days = mask === 127 ? 'Todos los días'
+    : mask === 31 ? 'L–V'
+    : mask === 96 ? 'S–D'
+    : mask === 0 ? 'Todos los días'
+    : DAY_LABELS.filter((_, i) => mask & DAY_BITS[i]).join(' ')
+  const time = hasTime ? `${item.start_time ?? '00:00'}–${item.end_time ?? '23:59'}` : ''
+  return [days, time].filter(Boolean).join(' · ')
+}
+
 function SortableItem({
   item,
   onUpdate,
@@ -51,10 +67,19 @@ function SortableItem({
   }
   const selectStyle = { ...inputStyle, cursor: 'pointer' }
 
+  const [schedOpen, setSchedOpen] = useState(false)
+  const mask = item.days_of_week ?? 0
+  const hasSchedule = mask !== 0 || !!item.start_time || !!item.end_time
+
+  const toggleDay = (bit: number) => {
+    const next = mask ^ bit
+    onUpdate(item.id, 'days_of_week', next)
+  }
+
   return (
     <div
       ref={setNodeRef}
-      style={{ ...style, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', alignItems: 'flex-start', gap: 12, padding: 12, transition: 'border-color 0.15s' }}
+      style={{ ...style, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', alignItems: 'flex-start', gap: 12, padding: 12, transition: 'border-color 0.15s', flexWrap: 'wrap' }}
       onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border2)')}
       onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)')}
     >
@@ -105,7 +130,71 @@ function SortableItem({
               onChange={(e) => onUpdate(item.id, 'transition_duration', Number(e.target.value))}
               style={{ ...inputStyle, width: 68 }} />
           </label>
+          <button
+            type="button"
+            onClick={() => setSchedOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-lg transition-colors"
+            style={hasSchedule
+              ? { color: 'var(--cyan)', background: 'var(--cyan-muted)', border: '1px solid var(--cyan-dim)' }
+              : { color: 'var(--text2)', background: 'var(--surface2)', border: '1px solid var(--border)' }
+            }
+            title="Mostrar solo en ciertos días/horas"
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+            </svg>
+            {hasSchedule ? scheduleSummary(item) : 'Horario'}
+          </button>
         </div>
+
+        {schedOpen && (
+          <div className="mt-3 p-3 rounded-lg animate-slide-up" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+            <div className="flex items-center gap-1.5 mb-3 flex-wrap">
+              <span style={{ fontSize: 11, color: 'var(--text2)', marginRight: 4 }}>Días:</span>
+              {DAY_LABELS.map((label, i) => {
+                const bit = DAY_BITS[i]
+                const active = !!(mask & bit)
+                return (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => toggleDay(bit)}
+                    className="w-7 h-7 rounded-full text-xs font-600 transition-colors"
+                    style={active
+                      ? { background: 'var(--cyan-muted)', color: 'var(--cyan)', border: '1px solid var(--cyan-dim)' }
+                      : { background: 'var(--surface)', color: 'var(--text2)', border: '1px solid var(--border)' }
+                    }
+                  >{label}</button>
+                )
+              })}
+              {mask !== 0 && (
+                <button type="button" onClick={() => onUpdate(item.id, 'days_of_week', 0)}
+                  className="text-xs ml-1" style={{ color: 'var(--text3)' }}
+                >Limpiar</button>
+              )}
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text2)' }}>
+                Desde
+                <input type="time" value={item.start_time ?? ''}
+                  onChange={(e) => onUpdate(item.id, 'start_time', e.target.value || null)}
+                  style={{ ...inputStyle, width: 92 }} />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text2)' }}>
+                Hasta
+                <input type="time" value={item.end_time ?? ''}
+                  onChange={(e) => onUpdate(item.id, 'end_time', e.target.value || null)}
+                  style={{ ...inputStyle, width: 92 }} />
+              </label>
+              {(item.start_time || item.end_time) && (
+                <button type="button"
+                  onClick={() => { onUpdate(item.id, 'start_time', null); onUpdate(item.id, 'end_time', null) }}
+                  className="text-xs" style={{ color: 'var(--text3)' }}
+                >Sin restricción</button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       <button onClick={() => onRemove(item.id)} title="Quitar" style={{ color: 'var(--text3)', fontSize: 18, flexShrink: 0, marginTop: 2, lineHeight: 1, transition: 'color 0.15s' }}

@@ -54,6 +54,13 @@ export default function Home() {
     } catch (e) { setError(String(e)) }
   }
 
+  const handleDuplicate = async (id: string) => {
+    try {
+      const copy = await playlistApi.duplicate(id)
+      setPlaylists((prev) => [copy, ...prev])
+    } catch (e) { setError(String(e)) }
+  }
+
   const onlineCount = screens.filter((s) => s.online).length
 
   return (
@@ -163,8 +170,18 @@ export default function Home() {
                   ▶ Reproducir
                 </Link>
                 <button
+                  onClick={() => handleDuplicate(p.id)}
+                  className="text-xs px-2 py-1.5 rounded-lg transition-colors"
+                  style={{ color: 'var(--text2)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--cyan)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
+                  title="Duplicar lista"
+                >
+                  Duplicar
+                </button>
+                <button
                   onClick={() => handleDelete(p.id)}
-                  className="text-xs px-2 py-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                  className="text-xs px-2 py-1.5 rounded-lg transition-colors"
                   style={{ color: 'var(--text2)' }}
                   onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
                   onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}

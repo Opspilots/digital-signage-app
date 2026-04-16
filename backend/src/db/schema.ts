@@ -108,6 +108,27 @@ if (itemsInfo.some(col => col.name === 'order_index')) {
   db.exec('ALTER TABLE playlist_items RENAME COLUMN order_index TO position');
 }
 
+// Per-item scheduling (0/NULL = always active)
+const itemsInfo2 = db.prepare('PRAGMA table_info(playlist_items)').all() as Array<{ name: string }>;
+if (!itemsInfo2.some(col => col.name === 'days_of_week')) {
+  db.exec('ALTER TABLE playlist_items ADD COLUMN days_of_week INTEGER NOT NULL DEFAULT 0');
+}
+if (!itemsInfo2.some(col => col.name === 'start_time')) {
+  db.exec('ALTER TABLE playlist_items ADD COLUMN start_time TEXT');
+}
+if (!itemsInfo2.some(col => col.name === 'end_time')) {
+  db.exec('ALTER TABLE playlist_items ADD COLUMN end_time TEXT');
+}
+
+// Pairing code on screens (rotating short code vs permanent token)
+const screensInfo = db.prepare('PRAGMA table_info(screens)').all() as Array<{ name: string }>;
+if (!screensInfo.some(col => col.name === 'pairing_code')) {
+  db.exec('ALTER TABLE screens ADD COLUMN pairing_code TEXT');
+}
+if (!screensInfo.some(col => col.name === 'pairing_expires_at')) {
+  db.exec('ALTER TABLE screens ADD COLUMN pairing_expires_at TEXT');
+}
+
 // Seed default admin user from env vars on first run
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin';

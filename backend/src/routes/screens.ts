@@ -19,9 +19,11 @@ function formatScreen(row: Record<string, unknown>) {
   };
 }
 
-// GET /api/screens — list all screens
+// GET /api/screens — list all claimed screens
 router.get('/', (_req: Request, res: Response) => {
-  const rows = db.prepare('SELECT * FROM screens ORDER BY created_at DESC').all() as Array<Record<string, unknown>>;
+  const rows = db.prepare(
+    'SELECT * FROM screens WHERE pairing_code IS NULL ORDER BY created_at DESC'
+  ).all() as Array<Record<string, unknown>>;
   res.json(rows.map(formatScreen));
 });
 
@@ -54,6 +56,47 @@ router.get('/ble-info', (_req: Request, res: Response) => {
     deviceName: 'SignageScreen',
     version: '1.0',
   });
+});
+
+// POST /api/screens/pair/claim (authenticated) — claim a pending screen with a 6-digit code
+router.post('/pair/claim', (req: Request, res: Response) => {
+  const { code, name, location } = req.body as { code?: string; name?: string; location?: string };
+  if (!code || typeof code !== 'string') {
+    res.status(400).json({ error: 'code is required' });
+    return;
+  }
+  if (!name || typeof name !== 'string' || name.trim() === '') {
+    res.status(400).json({ error: 'name is required' });
+    return;
+  }
+
+  const normalized = code.replace(/\s+/g, '').trim().toUpperCase();
+  const now = new Date();
+
+  const screen = db.prepare(
+    'SELECT * FROM screens WHERE pairing_code = ?'
+  ).get(normalized) as Record<string, unknown> | undefined;
+
+  if (!screen) {
+    res.status(404).json({ error: 'Código no válido o caducado' });
+    return;
+  }
+
+  const expiresAt = screen.pairing_expires_at as string | null;
+  if (expiresAt && new Date(expiresAt) < now) {
+    db.prepare('DELETE FROM screens WHERE id = ?').run(screen.id);
+    res.status(410).json({ error: 'Código caducado. Solicita uno nuevo en la pantalla.' });
+    return;
+  }
+
+  db.prepare(`
+    UPDATE screens
+    SET name = ?, location = ?, pairing_code = NULL, pairing_expires_at = NULL, updated_at = ?
+    WHERE id = ?
+  `).run(name.trim(), location ?? null, now.toISOString(), screen.id);
+
+  const updated = db.prepare('SELECT * FROM screens WHERE id = ?').get(screen.id) as Record<string, unknown>;
+  res.json(formatScreen(updated));
 });
 
 // GET /api/screens/:id — get single screen
@@ -140,6 +183,76 @@ export default router;
 // Public router for screen-token-authenticated endpoints (no user JWT required)
 import { Router as PublicRouter } from 'express';
 export const screensPublicRouter = PublicRouter();
+
+const PAIRING_TTL_MS = 15 * 60 * 1000; // 15 minutes
+
+function generatePairingCode(): string {
+  // 6 chars, avoid ambiguous (O/0, I/1)
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 6; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  return code;
+}
+
+// POST /api/screens/pair/new (public) — request a pairing code.
+// Creates a pending screen with placeholder name. Returns code + token.
+screensPublicRouter.post('/pair/new', (_req: Request, res: Response) => {
+  // Garbage collect expired pending screens
+  db.prepare('DELETE FROM screens WHERE pairing_code IS NOT NULL AND pairing_expires_at < ?')
+    .run(new Date().toISOString());
+
+  // Generate a unique code
+  let code = generatePairingCode();
+  for (let tries = 0; tries < 10; tries++) {
+    const exists = db.prepare('SELECT 1 FROM screens WHERE pairing_code = ?').get(code);
+    if (!exists) break;
+    code = generatePairingCode();
+  }
+
+  const id = uuidv4();
+  const token = uuidv4();
+  const now = new Date();
+  const expires = new Date(now.getTime() + PAIRING_TTL_MS);
+
+  db.prepare(`
+    INSERT INTO screens (id, name, location, status, token, pairing_code, pairing_expires_at, created_at, updated_at)
+    VALUES (?, ?, NULL, 'offline', ?, ?, ?, ?, ?)
+  `).run(id, 'Pantalla sin nombre', token, code, expires.toISOString(), now.toISOString(), now.toISOString());
+
+  res.status(201).json({
+    screen_id: id,
+    token,
+    code,
+    expires_at: expires.toISOString(),
+  });
+});
+
+// GET /api/screens/pair/status (public, uses screen token via Bearer) — pending/claimed status
+screensPublicRouter.get('/pair/status', (req: Request, res: Response) => {
+  const header = req.headers.authorization;
+  if (!header?.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  const token = header.slice(7);
+  const screen = db.prepare(
+    'SELECT id, name, pairing_code, pairing_expires_at FROM screens WHERE token = ?'
+  ).get(token) as { id: string; name: string; pairing_code: string | null; pairing_expires_at: string | null } | undefined;
+
+  if (!screen) {
+    res.status(404).json({ error: 'Invalid token' });
+    return;
+  }
+
+  const claimed = screen.pairing_code === null;
+  res.json({
+    claimed,
+    screen_id: screen.id,
+    name: screen.name,
+    code: screen.pairing_code,
+    expires_at: screen.pairing_expires_at,
+  });
+});
 
 // POST /api/screens/heartbeat — screen device heartbeat
 screensPublicRouter.post('/heartbeat', (req: Request, res: Response) => {

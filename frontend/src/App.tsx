@@ -4,6 +4,7 @@ import Home from './pages/Home'
 import MediaLibrary from './pages/MediaLibrary'
 import PlaylistEditor from './pages/PlaylistEditor'
 import PlaylistPlayer from './pages/PlaylistPlayer'
+import PairingScreen from './pages/PairingScreen'
 import Screens from './pages/Screens'
 import ScreenSchedules from './pages/ScreenSchedules'
 import Login from './pages/Login'
@@ -228,6 +229,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/pair" element={<PairingScreen />} />
         <Route path="/playlists/:id/play" element={<PlaylistPlayer />} />
         <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route index element={<Home />} />

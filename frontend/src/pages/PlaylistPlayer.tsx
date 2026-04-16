@@ -5,6 +5,28 @@ import type { Playlist, PlaylistItem } from '../api/types'
 
 const HEARTBEAT_INTERVAL_MS = 30_000
 const HUD_TIMEOUT_MS        = 3000
+const SCHEDULE_CHECK_MS     = 30_000
+
+function isItemActiveNow(item: PlaylistItem, now: Date): boolean {
+  const mask = item.days_of_week ?? 0
+  if (mask !== 0) {
+    const jsDow = now.getDay()          // 0=Sun
+    const dowBit = jsDow === 0 ? 64 : (1 << (jsDow - 1))
+    if ((mask & dowBit) === 0) return false
+  }
+  const toMin = (t?: string | null) => {
+    if (!t) return null
+    const [h, m] = t.split(':').map(Number)
+    return h * 60 + (m || 0)
+  }
+  const start = toMin(item.start_time)
+  const end   = toMin(item.end_time)
+  if (start === null && end === null) return true
+  const nowMin = now.getHours() * 60 + now.getMinutes()
+  if (start !== null && nowMin < start) return false
+  if (end !== null && nowMin >= end) return false
+  return true
+}
 
 export default function PlaylistPlayer() {
   const { id } = useParams<{ id: string }>()
@@ -16,6 +38,7 @@ export default function PlaylistPlayer() {
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | undefined>(id)
   const currentPlaylistIdRef = useRef(currentPlaylistId)
   const [items, setItems] = useState<PlaylistItem[]>([])
+  const [nowTick, setNowTick] = useState(() => new Date())
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -73,9 +96,21 @@ export default function PlaylistPlayer() {
     setTransitionKey((k) => k + 1)
   }, [])
 
+  // Refresh schedule check periodically so items become (in)active without reload
   useEffect(() => {
-    if (items.length === 0) return
-    const item = items[currentIndex]
+    const t = setInterval(() => setNowTick(new Date()), SCHEDULE_CHECK_MS)
+    return () => clearInterval(t)
+  }, [])
+
+  const activeItems = items.filter((it) => isItemActiveNow(it, nowTick))
+
+  useEffect(() => {
+    if (currentIndex >= activeItems.length) setCurrentIndex(0)
+  }, [activeItems.length, currentIndex])
+
+  useEffect(() => {
+    if (activeItems.length === 0) return
+    const item = activeItems[currentIndex]
     if (!item) return
 
     if (timerRef.current) clearTimeout(timerRef.current)
@@ -83,7 +118,7 @@ export default function PlaylistPlayer() {
     const isVideo = item.media_file?.mime_type.startsWith('video/')
     if (!isVideo) {
       timerRef.current = setTimeout(() => {
-        const nextIdx = currentIndex + 1 < items.length ? currentIndex + 1 : 0
+        const nextIdx = currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0
         goTo(nextIdx)
       }, item.display_duration * 1000)
     }
@@ -91,7 +126,7 @@ export default function PlaylistPlayer() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [currentIndex, items, goTo])
+  }, [currentIndex, activeItems, goTo])
 
   const toggleFullscreen = useCallback(async () => {
     try {
@@ -114,14 +149,14 @@ export default function PlaylistPlayer() {
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !document.fullscreenElement) navigate(-1)
-      if (e.key === 'ArrowRight') goTo(currentIndex + 1 < items.length ? currentIndex + 1 : 0)
-      if (e.key === 'ArrowLeft') goTo(currentIndex - 1 >= 0 ? currentIndex - 1 : items.length - 1)
+      if (e.key === 'ArrowRight') goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0)
+      if (e.key === 'ArrowLeft') goTo(currentIndex - 1 >= 0 ? currentIndex - 1 : activeItems.length - 1)
       if (e.key === 'f' || e.key === 'F') toggleFullscreen()
       if (e.key === 'm' || e.key === 'M') setMuted((m) => !m)
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [items.length, navigate, currentIndex, goTo, toggleFullscreen])
+  }, [activeItems.length, navigate, currentIndex, goTo, toggleFullscreen])
 
   const bumpHud = useCallback(() => {
     setShowHud(true)
@@ -167,7 +202,19 @@ export default function PlaylistPlayer() {
     )
   }
 
-  const currentItem = items[currentIndex]
+  if (activeItems.length === 0) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white gap-4 px-6 text-center">
+        <p className="text-gray-300">Ningún contenido programado ahora.</p>
+        <p className="text-gray-500 text-sm">La lista tiene elementos, pero ninguno está activo en este día/horario.</p>
+        <button onClick={() => navigate(-1)} className="text-blue-400 hover:text-blue-300 text-sm">
+          ← Volver
+        </button>
+      </div>
+    )
+  }
+
+  const currentItem = activeItems[currentIndex] ?? activeItems[0]
   const isVideo = currentItem.media_file?.mime_type.startsWith('video/')
   const transitionType = currentItem.transition_type
   const transDuration = currentItem.transition_duration
@@ -221,8 +268,8 @@ export default function PlaylistPlayer() {
           autoPlay
           muted={muted}
           playsInline
-          onEnded={() => goTo(currentIndex + 1 < items.length ? currentIndex + 1 : 0)}
-          onError={() => goTo(currentIndex + 1 < items.length ? currentIndex + 1 : 0)}
+          onEnded={() => goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0)}
+          onError={() => goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0)}
         />
       ) : (
         <img
@@ -270,7 +317,7 @@ export default function PlaylistPlayer() {
         >
           <div className="flex items-center gap-2 pointer-events-auto">
             <button
-              onClick={() => goTo(currentIndex - 1 >= 0 ? currentIndex - 1 : items.length - 1)}
+              onClick={() => goTo(currentIndex - 1 >= 0 ? currentIndex - 1 : activeItems.length - 1)}
               className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white"
               style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)' }}
               title="Anterior (←)"
@@ -280,7 +327,7 @@ export default function PlaylistPlayer() {
               </svg>
             </button>
             <button
-              onClick={() => goTo(currentIndex + 1 < items.length ? currentIndex + 1 : 0)}
+              onClick={() => goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0)}
               className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white"
               style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)' }}
               title="Siguiente (→)"
@@ -290,7 +337,7 @@ export default function PlaylistPlayer() {
               </svg>
             </button>
             <span className="text-white text-sm font-mono px-2">
-              {currentIndex + 1} / {items.length}
+              {currentIndex + 1} / {activeItems.length}
             </span>
           </div>
 

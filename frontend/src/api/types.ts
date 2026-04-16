@@ -32,6 +32,9 @@ export interface PlaylistItem {
   display_duration: number
   transition_type: TransitionType
   transition_duration: number
+  days_of_week: number          // 0 = always; otherwise bitmask (Mon=1...Sun=64)
+  start_time: string | null     // HH:MM; null = no start constraint
+  end_time: string | null       // HH:MM; null = no end constraint
   media_file?: MediaFile
 }
 

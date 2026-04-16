@@ -110,6 +110,59 @@ function updatePlaylist(req: Request, res: Response) {
 router.patch('/:id', updatePlaylist);
 router.put('/:id', updatePlaylist);
 
+// POST /api/playlists/:id/duplicate — clone playlist and all its items
+router.post('/:id/duplicate', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const source = db.prepare('SELECT * FROM playlists WHERE id = ?').get(id) as
+    | { title: string; description: string | null }
+    | undefined;
+
+  if (!source) {
+    res.status(404).json({ error: 'Playlist not found' });
+    return;
+  }
+
+  const newId = uuidv4();
+  const now = new Date().toISOString();
+  const newTitle = `${source.title} (copia)`;
+
+  const duplicate = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO playlists (id, title, description, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(newId, newTitle, source.description, now, now);
+
+    const items = db.prepare(
+      'SELECT * FROM playlist_items WHERE playlist_id = ? ORDER BY position ASC'
+    ).all(id) as Array<{
+      media_file_id: string;
+      position: number;
+      display_duration: number;
+      transition_type: string;
+      transition_duration: number;
+      days_of_week: number | null;
+      start_time: string | null;
+      end_time: string | null;
+    }>;
+
+    const insert = db.prepare(`
+      INSERT INTO playlist_items (id, playlist_id, media_file_id, position, display_duration, transition_type, transition_duration, days_of_week, start_time, end_time)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const it of items) {
+      insert.run(
+        uuidv4(), newId, it.media_file_id, it.position,
+        it.display_duration, it.transition_type, it.transition_duration,
+        it.days_of_week ?? 0, it.start_time, it.end_time,
+      );
+    }
+  });
+
+  duplicate();
+  const row = db.prepare('SELECT * FROM playlists WHERE id = ?').get(newId);
+  res.status(201).json({ ...row as object, items: getItems(newId) });
+});
+
 // DELETE /api/playlists/:id — delete playlist and its items
 router.delete('/:id', (req: Request, res: Response) => {
   const { id } = req.params;
@@ -292,10 +345,13 @@ function updateItem(req: Request, res: Response) {
     return;
   }
 
-  const { display_duration, transition_type, transition_duration } = req.body as {
+  const { display_duration, transition_type, transition_duration, days_of_week, start_time, end_time } = req.body as {
     display_duration?: number;
     transition_type?: string;
     transition_duration?: number;
+    days_of_week?: number;
+    start_time?: string | null;
+    end_time?: string | null;
   };
 
   const updates: string[] = [];
@@ -312,6 +368,18 @@ function updateItem(req: Request, res: Response) {
   if (transition_duration !== undefined) {
     updates.push('transition_duration = ?');
     params.push(transition_duration);
+  }
+  if (days_of_week !== undefined) {
+    updates.push('days_of_week = ?');
+    params.push(days_of_week);
+  }
+  if (start_time !== undefined) {
+    updates.push('start_time = ?');
+    params.push(start_time);
+  }
+  if (end_time !== undefined) {
+    updates.push('end_time = ?');
+    params.push(end_time);
   }
 
   if (updates.length === 0) {

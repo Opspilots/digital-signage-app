@@ -89,6 +89,8 @@ export const playlistApi = {
       method: 'PUT',
       body: JSON.stringify(data),
     }),
+  duplicate: (id: string) =>
+    request<Playlist>(`/api/playlists/${id}/duplicate`, { method: 'POST' }),
   delete: (id: string) =>
     request<void>(`/api/playlists/${id}`, { method: 'DELETE' }),
 }
@@ -107,6 +109,15 @@ export const screenApi = {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     }).then((r) => r.json() as Promise<{ screen_id: string; current_playlist_id: string | null; playlist: { id: string; title: string } | null }>),
+  pairNew: () =>
+    fetch(`${BASE_URL}/api/screens/pair/new`, { method: 'POST' })
+      .then((r) => r.json() as Promise<{ screen_id: string; token: string; code: string; expires_at: string }>),
+  pairStatus: (token: string) =>
+    fetch(`${BASE_URL}/api/screens/pair/status`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then((r) => r.json() as Promise<{ claimed: boolean; screen_id: string; name: string; code: string | null; expires_at: string | null }>),
+  pairClaim: (data: { code: string; name: string; location?: string }) =>
+    request<Screen>('/api/screens/pair/claim', { method: 'POST', body: JSON.stringify(data) }),
 }
 
 // Schedules
@@ -152,7 +163,7 @@ export const itemApi = {
   update: (
     playlistId: string,
     itemId: string,
-    data: Partial<Pick<PlaylistItem, 'display_duration' | 'transition_type' | 'transition_duration'>>
+    data: Partial<Pick<PlaylistItem, 'display_duration' | 'transition_type' | 'transition_duration' | 'days_of_week' | 'start_time' | 'end_time'>>
   ) =>
     request<PlaylistItem>(`/api/playlists/${playlistId}/items/${itemId}`, {
       method: 'PUT',

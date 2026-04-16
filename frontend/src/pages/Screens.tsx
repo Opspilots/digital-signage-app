@@ -28,6 +28,11 @@ export default function Screens() {
   const [copiedId,   setCopiedId]   = useState<string | null>(null)
   const [qrScreen,   setQrScreen]   = useState<Screen | null>(null)
   const [toasts,     setToasts]     = useState<Toast[]>([])
+  const [showPair,   setShowPair]   = useState(false)
+  const [pairCode,   setPairCode]   = useState('')
+  const [pairName,   setPairName]   = useState('')
+  const [pairLoc,    setPairLoc]    = useState('')
+  const [pairing,    setPairing]    = useState(false)
   const prevOnline = useRef<Map<string, boolean>>(new Map())
   const firstLoad  = useRef(true)
 
@@ -114,6 +119,19 @@ export default function Screens() {
   }
   const handleCloseBt = () => { setShowBtModal(false); clearDevices() }
 
+  const handlePairClaim = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!pairCode.trim() || !pairName.trim()) return
+    setPairing(true)
+    try {
+      const s = await screenApi.pairClaim({ code: pairCode.trim().toUpperCase(), name: pairName.trim(), location: pairLoc.trim() || undefined })
+      setScreens((prev) => [s, ...prev])
+      setShowPair(false); setPairCode(''); setPairName(''); setPairLoc('')
+      pushToast({ kind: 'info', message: `"${s.name}" enlazada correctamente` })
+    } catch (e) { setError(String(e)) }
+    finally { setPairing(false) }
+  }
+
   const handleRegisterDevice = async (device: DiscoveredDevice) => {
     setRegisteringDevice(device.id)
     try {
@@ -149,6 +167,16 @@ export default function Screens() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <button
+            onClick={() => setShowPair(true)}
+            className="flex items-center gap-2 text-sm px-3 sm:px-4 py-2 rounded-lg font-500 transition-colors"
+            style={{ color: 'var(--cyan)', background: 'var(--cyan-muted)', border: '1px solid var(--cyan-dim)' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            Enlazar por código
+          </button>
           {btSupported && (
             <button
               onClick={handleOpenBt}
@@ -378,6 +406,48 @@ export default function Screens() {
                 {isScanning ? 'Buscando…' : btDevices.length > 0 ? 'Buscar otro' : 'Buscar dispositivos'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Pair Modal */}
+      {showPair && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => !pairing && setShowPair(false)}>
+          <div className="ds-card w-full max-w-md animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+              <h3 className="font-display font-600" style={{ color: 'var(--text1)' }}>Enlazar pantalla</h3>
+              <button onClick={() => setShowPair(false)} style={{ color: 'var(--text2)' }} aria-label="Cerrar"
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--text1)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <form onSubmit={handlePairClaim} className="p-5 space-y-4">
+              <div className="rounded-lg p-3 text-xs leading-relaxed" style={{ background: 'var(--cyan-muted)', border: '1px solid var(--cyan-dim)', color: 'var(--text2)' }}>
+                Abre <span className="font-mono" style={{ color: 'var(--text1)' }}>{typeof window !== 'undefined' ? `${window.location.origin}/pair` : '/pair'}</span> en la pantalla e introduce aquí el código que aparece.
+              </div>
+              <div>
+                <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Código</label>
+                <input autoFocus type="text" value={pairCode} onChange={(e) => setPairCode(e.target.value.toUpperCase())}
+                  maxLength={8} required placeholder="XXX-XXX"
+                  className="ds-input font-mono text-center" style={{ fontSize: 18, letterSpacing: '0.15em' }} />
+              </div>
+              <div>
+                <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Nombre</label>
+                <input type="text" value={pairName} onChange={(e) => setPairName(e.target.value)} required placeholder="p. ej. TV Recepción" className="ds-input" />
+              </div>
+              <div>
+                <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Ubicación (opcional)</label>
+                <input type="text" value={pairLoc} onChange={(e) => setPairLoc(e.target.value)} className="ds-input" />
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button type="submit" disabled={pairing} className="ds-btn flex-1">
+                  {pairing ? 'Enlazando…' : 'Enlazar'}
+                </button>
+                <button type="button" onClick={() => setShowPair(false)} disabled={pairing} className="text-sm px-4 py-2 rounded-lg" style={{ color: 'var(--text2)' }}>Cancelar</button>
+              </div>
+            </form>
           </div>
         </div>
       )}
