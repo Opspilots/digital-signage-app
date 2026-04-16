@@ -113,7 +113,7 @@ export default function PlaylistPlayer() {
   if (loading) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
-        Loading…
+        Cargando…
       </div>
     )
   }
@@ -121,7 +121,7 @@ export default function PlaylistPlayer() {
   if (error || !playlist) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-red-400">
-        {error ?? 'Not found'}
+        {error ?? 'No encontrada'}
       </div>
     )
   }
@@ -129,9 +129,9 @@ export default function PlaylistPlayer() {
   if (items.length === 0) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white gap-4">
-        <p className="text-gray-400">This playlist has no items.</p>
+        <p className="text-gray-400">Esta lista no tiene elementos.</p>
         <button onClick={() => navigate(-1)} className="text-blue-400 hover:text-blue-300 text-sm">
-          ← Go back
+          ← Volver
         </button>
       </div>
     )
@@ -217,7 +217,7 @@ export default function PlaylistPlayer() {
           <span className="text-white text-sm">
             {currentIndex + 1} / {items.length}
           </span>
-          <span className="text-gray-300 text-xs">ESC to exit · ← → to navigate</span>
+          <span className="text-gray-300 text-xs">ESC para salir · ← → para navegar</span>
         </div>
       </div>
     </div>

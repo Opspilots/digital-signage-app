@@ -38,21 +38,21 @@ export default function Users() {
   }
 
   const handleDelete = async (userId: string) => {
-    if (!confirm('Delete this user?')) return
+    if (!confirm('¿Eliminar este usuario?')) return
     try { await userApi.delete(userId); setUsers((prev) => prev.filter((u) => u.id !== userId)) }
     catch (e) { setError(String(e)) }
   }
 
-  if (loading) return <div className="p-8 text-sm" style={{ color: 'var(--text2)' }}>Loading…</div>
+  if (loading) return <div className="p-8 text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>Users</h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{users.length} account{users.length !== 1 ? 's' : ''}</p>
+          <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>Usuarios</h1>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{users.length} cuenta{users.length !== 1 ? 's' : ''}</p>
         </div>
-        <button onClick={() => setShowForm(!showForm)} className="ds-btn">+ New User</button>
+        <button onClick={() => setShowForm(!showForm)} className="ds-btn">+ Nuevo usuario</button>
       </div>
 
       {error && (
@@ -63,33 +63,33 @@ export default function Users() {
 
       {showForm && (
         <form onSubmit={handleCreate} className="ds-card p-5 mb-6 space-y-4 animate-slide-up">
-          <p className="font-display font-600 text-sm" style={{ color: 'var(--text1)' }}>New User</p>
+          <p className="font-display font-600 text-sm" style={{ color: 'var(--text1)' }}>Nuevo usuario</p>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Username</label>
+              <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Usuario</label>
               <input type="text" required value={form.username} onChange={(e) => setForm((f) => ({ ...f, username: e.target.value }))} className="ds-input" />
             </div>
             <div>
-              <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Password</label>
+              <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Contraseña</label>
               <input type="password" required minLength={6} value={form.password} onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))} className="ds-input" />
             </div>
             <div>
-              <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Role</label>
+              <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Rol</label>
               <select value={form.role} onChange={(e) => setForm((f) => ({ ...f, role: e.target.value }))} className="ds-input">
                 <option value="editor">Editor</option>
-                <option value="admin">Admin</option>
+                <option value="admin">Administrador</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Email (optional)</label>
+              <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Email (opcional)</label>
               <input type="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} className="ds-input" />
             </div>
           </div>
           <div className="flex gap-2 pt-1">
             <button type="submit" disabled={submitting} className="ds-btn">
-              {submitting ? 'Creating…' : 'Create User'}
+              {submitting ? 'Creando…' : 'Crear usuario'}
             </button>
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-4 py-2 rounded-lg" style={{ color: 'var(--text2)' }}>Cancel</button>
+            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-4 py-2 rounded-lg" style={{ color: 'var(--text2)' }}>Cancelar</button>
           </div>
         </form>
       )}
@@ -110,10 +110,10 @@ export default function Users() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="font-500" style={{ color: 'var(--text1)' }}>{user.username}</span>
-                    {isSelf && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--cyan-muted)', color: 'var(--cyan)' }}>you</span>}
+                    {isSelf && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: 'var(--cyan-muted)', color: 'var(--cyan)' }}>tú</span>}
                   </div>
                   {user.email && <p className="text-xs truncate" style={{ color: 'var(--text2)' }}>{user.email}</p>}
-                  <p className="text-xs" style={{ color: 'var(--text3)' }}>Since {new Date(user.created_at).toLocaleDateString()}</p>
+                  <p className="text-xs" style={{ color: 'var(--text3)' }}>Desde {new Date(user.created_at).toLocaleDateString('es-ES')}</p>
                 </div>
               </div>
 
@@ -124,9 +124,9 @@ export default function Users() {
                       className="text-xs rounded-lg px-2.5 py-1.5"
                       style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text1)', outline: 'none' }}>
                       <option value="editor">Editor</option>
-                      <option value="admin">Admin</option>
+                      <option value="admin">Administrador</option>
                     </select>
-                    <button onClick={() => setEditingRole(null)} className="text-xs" style={{ color: 'var(--text2)' }}>Cancel</button>
+                    <button onClick={() => setEditingRole(null)} className="text-xs" style={{ color: 'var(--text2)' }}>Cancelar</button>
                   </div>
                 ) : (
                   <button onClick={() => setEditingRole(user.id)}
@@ -135,14 +135,14 @@ export default function Users() {
                       ? { background: 'var(--cyan-muted)', color: 'var(--cyan)', border: '1px solid var(--cyan-dim)' }
                       : { background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)' }
                     }>
-                    {user.role}
+                    {user.role === 'admin' ? 'Administrador' : user.role === 'editor' ? 'Editor' : user.role}
                   </button>
                 )}
                 {!isSelf && (
                   <button onClick={() => handleDelete(user.id)} className="text-sm transition-colors" style={{ color: 'var(--text2)' }}
                     onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
                     onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
-                  >Delete</button>
+                  >Eliminar</button>
                 )}
               </div>
             </li>

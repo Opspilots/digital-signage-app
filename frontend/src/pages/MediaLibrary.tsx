@@ -49,7 +49,7 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this file?')) return
+    if (!confirm('¿Eliminar este archivo?')) return
     try {
       await mediaApi.delete(id)
       setFiles((prev) => prev.filter((f) => f.id !== id))
@@ -69,19 +69,19 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
         <div className="flex items-center justify-between mb-8">
           <div>
             <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>
-              Media Library
+              Biblioteca multimedia
             </h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{files.length} file{files.length !== 1 ? 's' : ''}</p>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{files.length} archivo{files.length !== 1 ? 's' : ''}</p>
           </div>
           <button onClick={() => fileInputRef.current?.click()} className="ds-btn">
-            Upload
+            Subir
           </button>
         </div>
       )}
 
       {selectionMode && (
         <p className="text-xs font-500 px-4 pt-4 mb-3 uppercase tracking-widest" style={{ color: 'var(--cyan)', letterSpacing: '0.08em' }}>
-          Click to add to playlist
+          Pulsa para añadir a la lista
         </p>
       )}
 
@@ -104,9 +104,9 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
             <polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
           </svg>
           <p className="text-sm" style={{ color: dragOver ? 'var(--cyan)' : 'var(--text2)' }}>
-            {uploading ? 'Uploading…' : 'Drop files or click to upload'}
+            {uploading ? 'Subiendo…' : 'Suelta archivos o haz clic para subir'}
           </p>
-          <p className="text-xs" style={{ color: 'var(--text3)' }}>Images & videos</p>
+          <p className="text-xs" style={{ color: 'var(--text3)' }}>Imágenes y vídeos</p>
         </div>
       </div>
 
@@ -118,9 +118,9 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
       )}
 
       {loading ? (
-        <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>Loading…</div>
+        <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
       ) : files.length === 0 ? (
-        <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>No media yet.</div>
+        <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>Aún no hay archivos.</div>
       ) : (
         <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 ${selectionMode ? 'px-4 pb-4' : ''}`}>
           {files.map((file) => {
@@ -169,7 +169,7 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
                         className="text-xs px-2 py-1 rounded-lg font-500"
                         style={{ background: 'var(--red-muted)', color: 'var(--red)', border: '1px solid rgba(248,113,113,0.3)' }}
                       >
-                        Delete
+                        Eliminar
                       </button>
                     </div>
                   )}

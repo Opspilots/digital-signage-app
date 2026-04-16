@@ -3,13 +3,13 @@ import { useParams, Link } from 'react-router-dom'
 import { scheduleApi, playlistApi, screenApi } from '../api/client'
 import type { Schedule, Playlist, Screen } from '../api/types'
 
-const DAYS    = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const DAYS    = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 const DAY_BITS = [1, 2, 4, 8, 16, 32, 64]
 
 function daysLabel(mask: number): string {
-  if (mask === 127) return 'Every day'
-  if (mask === 31)  return 'Weekdays'
-  if (mask === 96)  return 'Weekends'
+  if (mask === 127) return 'Todos los días'
+  if (mask === 31)  return 'Entre semana'
+  if (mask === 96)  return 'Fines de semana'
   return DAYS.filter((_, i) => mask & DAY_BITS[i]).join(', ')
 }
 
@@ -53,14 +53,14 @@ export default function ScreenSchedules() {
   }
 
   const handleDelete = async (scheduleId: string) => {
-    if (!screenId || !confirm('Delete this schedule?')) return
+    if (!screenId || !confirm('¿Eliminar este horario?')) return
     try {
       await scheduleApi.delete(screenId, scheduleId)
       setSchedules((prev) => prev.filter((s) => s.id !== scheduleId))
     } catch (e) { setError(String(e)) }
   }
 
-  if (loading) return <div className="p-8 text-sm" style={{ color: 'var(--text2)' }}>Loading…</div>
+  if (loading) return <div className="p-8 text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
 
   return (
     <div className="p-8 max-w-3xl mx-auto">
@@ -69,13 +69,13 @@ export default function ScreenSchedules() {
         <Link to="/screens" className="text-sm transition-colors" style={{ color: 'var(--text2)' }}
           onMouseEnter={e => ((e.currentTarget as HTMLAnchorElement).style.color = 'var(--text1)')}
           onMouseLeave={e => ((e.currentTarget as HTMLAnchorElement).style.color = 'var(--text2)')}
-        >← Screens</Link>
+        >← Pantallas</Link>
         <span style={{ color: 'var(--text3)' }}>/</span>
         <h1 className="font-display font-700 text-xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>
           {screen?.name ?? screenId}
         </h1>
         <span className="text-xs px-2 py-0.5 rounded-full font-500" style={{ background: 'var(--cyan-muted)', color: 'var(--cyan)' }}>
-          Schedules
+          Horarios
         </span>
       </div>
 
@@ -92,25 +92,25 @@ export default function ScreenSchedules() {
 
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm" style={{ color: 'var(--text2)' }}>
-          {schedules.length === 0 ? 'No schedules configured.' : `${schedules.length} schedule${schedules.length !== 1 ? 's' : ''}`}
+          {schedules.length === 0 ? 'No hay horarios configurados.' : `${schedules.length} horario${schedules.length !== 1 ? 's' : ''}`}
         </p>
-        <button onClick={() => setShowForm(!showForm)} className="ds-btn">+ Add Schedule</button>
+        <button onClick={() => setShowForm(!showForm)} className="ds-btn">+ Añadir horario</button>
       </div>
 
       {showForm && (
         <form onSubmit={handleSubmit} className="ds-card p-5 mb-6 space-y-4 animate-slide-up">
-          <p className="font-display font-600 text-sm" style={{ color: 'var(--text1)' }}>New Schedule</p>
+          <p className="font-display font-600 text-sm" style={{ color: 'var(--text1)' }}>Nuevo horario</p>
 
           <div>
-            <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Playlist</label>
+            <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Lista</label>
             <select value={form.playlist_id} onChange={(e) => setForm((f) => ({ ...f, playlist_id: e.target.value }))} required className="ds-input">
-              <option value="">Select playlist…</option>
+              <option value="">Selecciona una lista…</option>
               {playlists.map((p) => <option key={p.id} value={p.id}>{p.title}</option>)}
             </select>
           </div>
 
           <div>
-            <label className="block text-xs font-500 mb-2 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Days</label>
+            <label className="block text-xs font-500 mb-2 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Días</label>
             <div className="flex gap-1.5 flex-wrap">
               {DAYS.map((day, i) => {
                 const bit    = DAY_BITS[i]
@@ -132,22 +132,22 @@ export default function ScreenSchedules() {
             {(['start_time', 'end_time'] as const).map((field) => (
               <div key={field} className="flex-1">
                 <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>
-                  {field === 'start_time' ? 'Start' : 'End'}
+                  {field === 'start_time' ? 'Inicio' : 'Fin'}
                 </label>
                 <input type="time" value={form[field]} onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))} required className="ds-input" />
               </div>
             ))}
             <div className="w-24">
-              <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Priority</label>
+              <label className="block text-xs font-500 mb-1.5 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>Prioridad</label>
               <input type="number" min={0} value={form.priority} onChange={(e) => setForm((f) => ({ ...f, priority: Number(e.target.value) }))} className="ds-input" />
             </div>
           </div>
 
           <div className="flex gap-2 pt-1">
             <button type="submit" disabled={submitting || form.days_of_week === 0} className="ds-btn">
-              {submitting ? 'Saving…' : 'Save Schedule'}
+              {submitting ? 'Guardando…' : 'Guardar horario'}
             </button>
-            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-4 py-2 rounded-lg" style={{ color: 'var(--text2)' }}>Cancel</button>
+            <button type="button" onClick={() => setShowForm(false)} className="text-sm px-4 py-2 rounded-lg" style={{ color: 'var(--text2)' }}>Cancelar</button>
           </div>
         </form>
       )}
@@ -170,7 +170,7 @@ export default function ScreenSchedules() {
                 className="text-sm flex-shrink-0 transition-colors" style={{ color: 'var(--text2)' }}
                 onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
                 onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
-              >Delete</button>
+              >Eliminar</button>
             </li>
           ))}
         </ul>

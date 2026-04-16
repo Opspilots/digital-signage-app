@@ -60,7 +60,7 @@ function SortableItem({
     >
       <button {...attributes} {...listeners}
         style={{ color: 'var(--text3)', cursor: 'grab', flexShrink: 0, marginTop: 2, fontSize: 18, lineHeight: 1 }}
-        title="Drag to reorder"
+        title="Arrastra para reordenar"
       >⠿</button>
 
       <div style={{ width: 80, height: 52, flexShrink: 0, borderRadius: 8, overflow: 'hidden', background: 'var(--surface2)' }}>
@@ -76,31 +76,31 @@ function SortableItem({
         </p>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 16px', alignItems: 'center' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text2)' }}>
-            Duration (s)
+            Duración (s)
             <input type="number" min={1} value={item.display_duration}
               onChange={(e) => onUpdate(item.id, 'display_duration', Number(e.target.value))}
               style={{ ...inputStyle, width: 56 }} />
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text2)' }}>
-            Transition
+            Transición
             <select value={item.transition_type} onChange={(e) => onUpdate(item.id, 'transition_type', e.target.value)} style={selectStyle}>
-              <option value="none">None</option>
-              <option value="fade">Fade</option>
-              <option value="slide">Slide</option>
-              <option value="zoom-in">Zoom In</option>
-              <option value="zoom-out">Zoom Out</option>
-              <option value="slide-left">Slide Left</option>
-              <option value="slide-up">Slide Up</option>
-              <option value="slide-down">Slide Down</option>
-              <option value="blur-in">Blur In</option>
-              <option value="flip">Flip</option>
-              <option value="rotate-in">Rotate In</option>
-              <option value="bounce-in">Bounce In</option>
-              <option value="wipe-right">Wipe Right</option>
+              <option value="none">Ninguna</option>
+              <option value="fade">Desvanecer</option>
+              <option value="slide">Deslizar</option>
+              <option value="zoom-in">Acercar</option>
+              <option value="zoom-out">Alejar</option>
+              <option value="slide-left">Deslizar izquierda</option>
+              <option value="slide-up">Deslizar arriba</option>
+              <option value="slide-down">Deslizar abajo</option>
+              <option value="blur-in">Desenfocar</option>
+              <option value="flip">Voltear</option>
+              <option value="rotate-in">Rotar</option>
+              <option value="bounce-in">Rebote</option>
+              <option value="wipe-right">Barrido</option>
             </select>
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, color: 'var(--text2)' }}>
-            Duration (ms)
+            Duración (ms)
             <input type="number" min={0} step={100} value={item.transition_duration}
               onChange={(e) => onUpdate(item.id, 'transition_duration', Number(e.target.value))}
               style={{ ...inputStyle, width: 68 }} />
@@ -108,7 +108,7 @@ function SortableItem({
         </div>
       </div>
 
-      <button onClick={() => onRemove(item.id)} title="Remove" style={{ color: 'var(--text3)', fontSize: 18, flexShrink: 0, marginTop: 2, lineHeight: 1, transition: 'color 0.15s' }}
+      <button onClick={() => onRemove(item.id)} title="Quitar" style={{ color: 'var(--text3)', fontSize: 18, flexShrink: 0, marginTop: 2, lineHeight: 1, transition: 'color 0.15s' }}
         onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
         onMouseLeave={e => (e.currentTarget.style.color = 'var(--text3)')}
       >✕</button>
@@ -225,8 +225,8 @@ export default function PlaylistEditor() {
     }
   }
 
-  if (loading) return <div className="p-8 text-sm" style={{ color: 'var(--text2)' }}>Loading…</div>
-  if (!playlist) return <div className="p-8 text-sm" style={{ color: 'var(--red)' }}>{error ?? 'Not found'}</div>
+  if (loading) return <div className="p-8 text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
+  if (!playlist) return <div className="p-8 text-sm" style={{ color: 'var(--red)' }}>{error ?? 'No encontrada'}</div>
 
   return (
     <div className="p-8 max-w-4xl mx-auto">
@@ -234,19 +234,19 @@ export default function PlaylistEditor() {
       <div className="flex items-start justify-between mb-6">
         <div>
           <p className="text-xs font-500 uppercase tracking-widest mb-1" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>
-            Editing Playlist
+            Editando lista
           </p>
           <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>
-            {titleDraft || 'Untitled'}
+            {titleDraft || 'Sin título'}
           </h1>
         </div>
         <div className="flex gap-2">
           <button onClick={handleSave} disabled={saving || !dirty} className="ds-btn" style={{ opacity: (!dirty || saving) ? 0.4 : 1 }}>
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? 'Guardando…' : 'Guardar'}
           </button>
           <Link to={`/playlists/${id}/play`} className="ds-btn"
             style={{ background: 'var(--green-muted)', color: 'var(--green)', border: '1px solid rgba(52,211,153,0.2)' }}>
-            ▶ Play
+            ▶ Reproducir
           </Link>
         </div>
       </div>
@@ -263,31 +263,31 @@ export default function PlaylistEditor() {
           onChange={(e) => { setTitleDraft(e.target.value); setDirty(true) }}
           className="w-full font-display font-600 text-xl bg-transparent focus:outline-none pb-2 mb-3"
           style={{ color: 'var(--text1)', borderBottom: '1px solid var(--border)', letterSpacing: '-0.01em' }}
-          placeholder="Playlist title" />
+          placeholder="Título de la lista" />
         <textarea value={descDraft} onChange={(e) => { setDescDraft(e.target.value); setDirty(true) }}
           className="w-full text-sm bg-transparent focus:outline-none resize-none"
-          style={{ color: 'var(--text2)' }} placeholder="Description (optional)" rows={2} />
+          style={{ color: 'var(--text2)' }} placeholder="Descripción (opcional)" rows={2} />
       </div>
 
       {/* Items header */}
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-3">
           <p className="text-xs font-500 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>
-            Items
+            Elementos
           </p>
           <span className="text-xs font-mono px-1.5 py-0.5 rounded" style={{ background: 'var(--surface2)', color: 'var(--text2)' }}>
             {items.length}
           </span>
           <div className="h-px flex-1" style={{ background: 'var(--border)' }} />
         </div>
-        <button onClick={() => setShowMedia(!showMedia)} className="ds-btn ml-4">+ Add Media</button>
+        <button onClick={() => setShowMedia(!showMedia)} className="ds-btn ml-4">+ Añadir contenido</button>
       </div>
 
       {/* Media picker */}
       {showMedia && (
         <div className="ds-card mb-6 overflow-hidden animate-slide-up">
           <div className="flex items-center justify-between px-4 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
-            <span className="text-sm font-500" style={{ color: 'var(--text1)' }}>Select media</span>
+            <span className="text-sm font-500" style={{ color: 'var(--text1)' }}>Selecciona un archivo</span>
             <button onClick={() => setShowMedia(false)} style={{ color: 'var(--text2)' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--text1)')}
               onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
@@ -304,7 +304,7 @@ export default function PlaylistEditor() {
       {/* Items list */}
       {items.length === 0 ? (
         <div className="ds-card px-5 py-12 text-center animate-fade-in">
-          <p className="text-sm" style={{ color: 'var(--text2)' }}>No items yet. Click "+ Add Media" to get started.</p>
+          <p className="text-sm" style={{ color: 'var(--text2)' }}>Aún no hay elementos. Pulsa "+ Añadir contenido" para empezar.</p>
         </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>

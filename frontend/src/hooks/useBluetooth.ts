@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
 export interface DiscoveredDevice {
   id: string
   name: string
+  paired?: boolean
 }
 
 export interface UseBluetoothReturn {
@@ -12,20 +13,59 @@ export interface UseBluetoothReturn {
   error: string | null
   scanForDevices: () => Promise<void>
   clearDevices: () => void
+  refreshPaired: () => Promise<void>
 }
 
 const SIGNAGE_SERVICE_UUID = '12345678-1234-5678-1234-56789abcdef0'
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type BluetoothNavigator = Navigator & { bluetooth?: any }
+
 export function useBluetooth(): UseBluetoothReturn {
-  const isSupported = typeof navigator !== 'undefined' && 'bluetooth' in navigator
+  const isSupported =
+    typeof navigator !== 'undefined' && 'bluetooth' in (navigator as BluetoothNavigator)
 
   const [isScanning, setIsScanning] = useState(false)
   const [devices, setDevices] = useState<DiscoveredDevice[]>([])
   const [error, setError] = useState<string | null>(null)
 
+  const addDevice = useCallback((d: DiscoveredDevice) => {
+    setDevices((prev) => {
+      const idx = prev.findIndex((x) => x.id === d.id)
+      if (idx === -1) return [...prev, d]
+      const next = [...prev]
+      next[idx] = { ...prev[idx], ...d }
+      return next
+    })
+  }, [])
+
+  // Load previously paired devices (Chromium with chrome://flags/#enable-experimental-web-platform-features)
+  const refreshPaired = useCallback(async () => {
+    if (!isSupported) return
+    const bt = (navigator as BluetoothNavigator).bluetooth
+    if (typeof bt.getDevices !== 'function') return
+    try {
+      const paired = await bt.getDevices()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      paired.forEach((device: any) => {
+        addDevice({
+          id: device.id,
+          name: device.name ?? `Dispositivo (${String(device.id).slice(0, 8)})`,
+          paired: true,
+        })
+      })
+    } catch {
+      // getDevices unavailable or blocked — silent
+    }
+  }, [isSupported, addDevice])
+
+  useEffect(() => {
+    if (isSupported) refreshPaired()
+  }, [isSupported, refreshPaired])
+
   const scanForDevices = useCallback(async () => {
     if (!isSupported) {
-      setError('Web Bluetooth is not supported in this browser or context.')
+      setError('Web Bluetooth no está disponible en este navegador. Usa Chrome o Edge sobre HTTPS.')
       return
     }
 
@@ -33,71 +73,51 @@ export function useBluetooth(): UseBluetoothReturn {
     setError(null)
 
     try {
-      // First try to find devices advertising our custom signage service
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const bt = (navigator as any).bluetooth
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      let device: any = null
-
-      try {
-        device = await bt.requestDevice({
-          filters: [{ services: [SIGNAGE_SERVICE_UUID] }],
-        })
-      } catch (filteredErr) {
-        // If no signage devices found or user cancelled during filtered scan,
-        // fall back to acceptAllDevices so the user can pick any visible device
-        if (
-          filteredErr instanceof DOMException &&
-          filteredErr.name === 'NotFoundError'
-        ) {
-          device = await bt.requestDevice({
-            acceptAllDevices: true,
-          })
-        } else {
-          // Re-throw cancellations and other errors
-          throw filteredErr
-        }
-      }
+      const bt = (navigator as BluetoothNavigator).bluetooth
+      // Abrimos el selector nativo aceptando cualquier dispositivo visible.
+      // Esto es mucho más permisivo que filtrar por UUID de servicio (casi ninguna TV lo anuncia)
+      // y deja al usuario elegir su pantalla por nombre.
+      const device = await bt.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [SIGNAGE_SERVICE_UUID, 'generic_access', 'device_information'],
+      })
 
       if (device) {
-        const discovered: DiscoveredDevice = {
+        addDevice({
           id: device.id,
-          name: device.name ?? `Unknown Device (${device.id.slice(0, 8)})`,
-        }
-
-        setDevices((prev) => {
-          // Deduplicate by id
-          const exists = prev.some((d) => d.id === discovered.id)
-          return exists ? prev : [...prev, discovered]
+          name: device.name ?? `Dispositivo (${String(device.id).slice(0, 8)})`,
+          paired: false,
         })
       }
     } catch (err) {
       if (err instanceof DOMException) {
         if (err.name === 'NotAllowedError') {
-          // User dismissed the picker — not an error worth showing
+          // Usuario cerró el selector — no es un error real
           return
         }
         if (err.name === 'SecurityError') {
-          setError(
-            'Bluetooth access requires a secure context (HTTPS or localhost).'
-          )
+          setError('Bluetooth requiere HTTPS o localhost para funcionar.')
           return
         }
-        setError(`Bluetooth error: ${err.message}`)
+        if (err.name === 'NotFoundError') {
+          setError('No se encontraron dispositivos. Asegúrate de que la pantalla esté encendida y con Bluetooth activado y cercano.')
+          return
+        }
+        setError(`Error de Bluetooth: ${err.message}`)
       } else if (err instanceof Error) {
         setError(err.message)
       } else {
-        setError('An unknown error occurred during Bluetooth scanning.')
+        setError('Ocurrió un error desconocido al buscar dispositivos.')
       }
     } finally {
       setIsScanning(false)
     }
-  }, [isSupported])
+  }, [isSupported, addDevice])
 
   const clearDevices = useCallback(() => {
     setDevices([])
     setError(null)
   }, [])
 
-  return { isSupported, isScanning, devices, error, scanForDevices, clearDevices }
+  return { isSupported, isScanning, devices, error, scanForDevices, clearDevices, refreshPaired }
 }

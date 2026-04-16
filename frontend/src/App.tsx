@@ -67,10 +67,10 @@ function AppLayout() {
   const isAdmin     = currentUser?.role === 'admin'
 
   const navItems = [
-    { to: '/playlists', label: 'Playlists', icon: icons.playlists },
-    { to: '/media',     label: 'Media',     icon: icons.media },
-    { to: '/screens',   label: 'Screens',   icon: icons.screens },
-    ...(isAdmin ? [{ to: '/users', label: 'Users', icon: icons.users }] : []),
+    { to: '/playlists', label: 'Listas',     icon: icons.playlists },
+    { to: '/media',     label: 'Multimedia', icon: icons.media },
+    { to: '/screens',   label: 'Pantallas',  icon: icons.screens },
+    ...(isAdmin ? [{ to: '/users', label: 'Usuarios', icon: icons.users }] : []),
   ]
 
   // Hide sidebar inside /screens/:id/schedules so it doesn't clutter
@@ -100,7 +100,7 @@ function AppLayout() {
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5">
           <p className="px-3 mb-2 text-xs font-500" style={{ color: 'var(--text3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Workspace
+            Espacio de trabajo
           </p>
           {navItems.map(({ to, label, icon }) => (
             <NavLink
@@ -139,7 +139,7 @@ function AppLayout() {
             </div>
             <button
               onClick={() => { logout(); navigate('/login') }}
-              title="Sign out"
+              title="Cerrar sesión"
               className="flex-shrink-0 transition-colors"
               style={{ color: 'var(--text3)' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}

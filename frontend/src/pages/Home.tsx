@@ -47,7 +47,7 @@ export default function Home() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Delete this playlist?')) return
+    if (!confirm('¿Eliminar esta lista de reproducción?')) return
     try {
       await playlistApi.delete(id)
       setPlaylists((prev) => prev.filter((p) => p.id !== id))
@@ -62,24 +62,24 @@ export default function Home() {
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>
-            Dashboard
+            Panel de control
           </h1>
-          <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>Manage your content and screens</p>
+          <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>Gestiona tu contenido y tus pantallas</p>
         </div>
         <button
           onClick={() => setCreating(true)}
           className="ds-btn"
         >
-          + New Playlist
+          + Nueva lista
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Playlists" value={playlists.length} />
-        <StatCard label="Media files" value={mediaCount ?? '—'} />
-        <StatCard label="Screens" value={screens.length} />
-        <StatCard label="Online now" value={onlineCount} accent={onlineCount > 0} />
+        <StatCard label="Listas" value={playlists.length} />
+        <StatCard label="Archivos multimedia" value={mediaCount ?? '—'} />
+        <StatCard label="Pantallas" value={screens.length} />
+        <StatCard label="En línea" value={onlineCount} accent={onlineCount > 0} />
       </div>
 
       {/* Create form */}
@@ -91,20 +91,20 @@ export default function Home() {
           <input
             autoFocus
             type="text"
-            placeholder="Playlist title…"
+            placeholder="Título de la lista…"
             value={newTitle}
             onChange={(e) => setNewTitle(e.target.value)}
             className="ds-input flex-1"
             style={{ width: 'auto' }}
           />
-          <button type="submit" className="ds-btn flex-shrink-0">Create</button>
+          <button type="submit" className="ds-btn flex-shrink-0">Crear</button>
           <button
             type="button"
             onClick={() => { setCreating(false); setNewTitle('') }}
             className="text-sm px-3 py-2 rounded-lg transition-colors"
             style={{ color: 'var(--text2)' }}
           >
-            Cancel
+            Cancelar
           </button>
         </form>
       )}
@@ -118,18 +118,18 @@ export default function Home() {
       {/* Section header */}
       <div className="flex items-center gap-3 mb-3">
         <p className="text-xs font-500 uppercase tracking-widest" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>
-          Playlists
+          Listas de reproducción
         </p>
         <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-sm" style={{ color: 'var(--text2)' }}>Loading…</div>
+        <div className="py-12 text-center text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
       ) : playlists.length === 0 ? (
         <div className="ds-card px-6 py-14 text-center animate-fade-in">
           <p className="text-3xl mb-3">🎬</p>
-          <p className="font-500 mb-1" style={{ color: 'var(--text1)' }}>No playlists yet</p>
-          <p className="text-sm" style={{ color: 'var(--text2)' }}>Create one to start scheduling content on your screens.</p>
+          <p className="font-500 mb-1" style={{ color: 'var(--text1)' }}>Aún no hay listas</p>
+          <p className="text-sm" style={{ color: 'var(--text2)' }}>Crea una para empezar a programar contenido en tus pantallas.</p>
         </div>
       ) : (
         <div className="space-y-2 animate-fade-in">
@@ -153,14 +153,14 @@ export default function Home() {
                   onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text1)' }}
                   onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text2)' }}
                 >
-                  Edit
+                  Editar
                 </Link>
                 <Link
                   to={`/playlists/${p.id}/play`}
                   className="text-xs px-3 py-1.5 rounded-lg font-500 transition-colors"
                   style={{ color: 'var(--green)', background: 'var(--green-muted)', border: '1px solid rgba(52,211,153,0.2)' }}
                 >
-                  ▶ Play
+                  ▶ Reproducir
                 </Link>
                 <button
                   onClick={() => handleDelete(p.id)}
@@ -169,7 +169,7 @@ export default function Home() {
                   onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
                   onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
                 >
-                  Delete
+                  Eliminar
                 </button>
               </div>
             </div>
