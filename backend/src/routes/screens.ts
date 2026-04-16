@@ -164,6 +164,20 @@ router.patch('/:id', (req: Request, res: Response) => {
   res.json(formatScreen(updated));
 });
 
+// POST /api/screens/:id/unpair — convert a claimed screen back into a pending pairing
+router.post('/:id/unpair', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const row = db.prepare('SELECT * FROM screens WHERE id = ?').get(id);
+  if (!row) {
+    res.status(404).json({ error: 'Screen not found' });
+    return;
+  }
+  // Easier to just delete the claimed screen — the TV (with the old token) will lose heartbeat
+  // and the operator must re-open /pair to get a fresh code.
+  db.prepare('DELETE FROM screens WHERE id = ?').run(id);
+  res.status(204).send();
+});
+
 // DELETE /api/screens/:id — delete screen
 router.delete('/:id', (req: Request, res: Response) => {
   const { id } = req.params;

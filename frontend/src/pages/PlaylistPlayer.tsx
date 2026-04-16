@@ -47,10 +47,12 @@ export default function PlaylistPlayer() {
   const [muted, setMuted] = useState(true)
   const [volume, setVolume] = useState(1)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [networkOk, setNetworkOk] = useState(true)
   const videoRef = useRef<HTMLVideoElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const heartbeatRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const heartbeatFailsRef = useRef(0)
 
   useEffect(() => {
     currentPlaylistIdRef.current = currentPlaylistId
@@ -71,22 +73,42 @@ export default function PlaylistPlayer() {
       .finally(() => setLoading(false))
   }, [currentPlaylistId])
 
+  // Adaptive heartbeat: 30s when healthy, backoff to 5s after a failure, 30s again on recovery.
   useEffect(() => {
     if (!screenToken) return
 
+    let cancelled = false
+
+    const scheduleNext = (ms: number) => {
+      if (cancelled) return
+      heartbeatRef.current = setTimeout(sendHeartbeat, ms)
+    }
+
     const sendHeartbeat = () => {
-      screenApi.heartbeat(screenToken).then((data) => {
-        if (data.current_playlist_id && data.current_playlist_id !== currentPlaylistIdRef.current) {
-          setCurrentPlaylistId(data.current_playlist_id)
-        }
-      }).catch(() => {})
+      screenApi.heartbeat(screenToken)
+        .then((data) => {
+          if (cancelled) return
+          heartbeatFailsRef.current = 0
+          setNetworkOk(true)
+          if (data.current_playlist_id && data.current_playlist_id !== currentPlaylistIdRef.current) {
+            setCurrentPlaylistId(data.current_playlist_id)
+          }
+          scheduleNext(HEARTBEAT_INTERVAL_MS)
+        })
+        .catch(() => {
+          if (cancelled) return
+          heartbeatFailsRef.current += 1
+          if (heartbeatFailsRef.current >= 2) setNetworkOk(false)
+          // Faster retries while flaky (5s, then back to 30s once recovered)
+          scheduleNext(5000)
+        })
     }
 
     sendHeartbeat()
-    heartbeatRef.current = setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS)
 
     return () => {
-      if (heartbeatRef.current) clearInterval(heartbeatRef.current)
+      cancelled = true
+      if (heartbeatRef.current) clearTimeout(heartbeatRef.current)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenToken])
@@ -279,6 +301,24 @@ export default function PlaylistPlayer() {
           className={`max-w-full max-h-screen object-contain ${animationClass}`}
           style={animationStyle}
         />
+      )}
+
+      {/* Persistent offline badge (visible regardless of HUD) */}
+      {screenToken && !networkOk && (
+        <div className="absolute bottom-3 left-3 flex items-center gap-2 text-xs px-2.5 py-1.5 rounded-lg pointer-events-none"
+          style={{ background: 'rgba(245,158,11,0.2)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.3)', backdropFilter: 'blur(6px)', zIndex: 10 }}
+        >
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="1" y1="1" x2="23" y2="23"/>
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+            <path d="M10.71 5.05A16 16 0 0 1 22.58 9"/>
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+            <line x1="12" y1="20" x2="12.01" y2="20"/>
+          </svg>
+          Sin conexión
+        </div>
       )}
 
       {/* HUD */}

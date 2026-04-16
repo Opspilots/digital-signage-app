@@ -104,6 +104,7 @@ export const screenApi = {
   update: (id: string, data: { name?: string; location?: string; current_playlist_id?: string | null }) =>
     request<Screen>(`/api/screens/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
   delete: (id: string) => request<void>(`/api/screens/${id}`, { method: 'DELETE' }),
+  unpair: (id: string) => request<void>(`/api/screens/${id}/unpair`, { method: 'POST' }),
   heartbeat: (token: string) =>
     fetch(`${BASE_URL}/api/screens/heartbeat`, {
       method: 'POST',

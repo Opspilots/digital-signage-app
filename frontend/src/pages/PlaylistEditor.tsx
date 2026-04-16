@@ -21,6 +21,7 @@ import { playlistApi, itemApi, BASE_URL } from '../api/client'
 import type { Playlist, PlaylistItem } from '../api/types'
 import MediaLibrary from './MediaLibrary'
 import type { MediaFile } from '../api/types'
+import { useToast } from '../toast'
 
 const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
 const DAY_BITS   = [1, 2, 4, 8, 16, 32, 64]
@@ -216,6 +217,7 @@ export default function PlaylistEditor() {
   const [titleDraft, setTitleDraft] = useState('')
   const [descDraft, setDescDraft] = useState('')
   const [dirty, setDirty] = useState(false)
+  const toast = useToast()
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -307,6 +309,7 @@ export default function PlaylistEditor() {
     try {
       await playlistApi.update(id, { title: titleDraft, description: descDraft })
       setDirty(false)
+      toast.success('Cambios guardados')
     } catch (e) {
       setError(String(e))
     } finally {

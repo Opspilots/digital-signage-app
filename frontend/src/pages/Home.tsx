@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { playlistApi, mediaApi, screenApi } from '../api/client'
 import type { Playlist, Screen } from '../api/types'
+import { useToast } from '../toast'
 
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
   return (
@@ -24,6 +25,8 @@ export default function Home() {
   const [error,       setError]       = useState<string | null>(null)
   const [creating,    setCreating]    = useState(false)
   const [newTitle,    setNewTitle]    = useState('')
+  const [search,      setSearch]      = useState('')
+  const toast = useToast()
 
   const load = () => {
     setLoading(true)
@@ -43,14 +46,17 @@ export default function Home() {
       setPlaylists((prev) => [p, ...prev])
       setNewTitle('')
       setCreating(false)
+      toast.success(`"${p.title}" creada`)
     } catch (e) { setError(String(e)) }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar esta lista de reproducción?')) return
+    const p = playlists.find((x) => x.id === id)
+    if (!confirm(`¿Eliminar "${p?.title ?? 'esta lista'}"?`)) return
     try {
       await playlistApi.delete(id)
       setPlaylists((prev) => prev.filter((p) => p.id !== id))
+      toast.success('Lista eliminada')
     } catch (e) { setError(String(e)) }
   }
 
@@ -58,6 +64,7 @@ export default function Home() {
     try {
       const copy = await playlistApi.duplicate(id)
       setPlaylists((prev) => [copy, ...prev])
+      toast.success(`"${copy.title}" creada`)
     } catch (e) { setError(String(e)) }
   }
 
@@ -130,7 +137,30 @@ export default function Home() {
         <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
       </div>
 
-      {loading ? (
+      {playlists.length > 1 && (
+        <div className="mb-3 relative">
+          <svg
+            width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ color: 'var(--text2)' }}
+          >
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar listas…"
+            className="ds-input"
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      )}
+
+      {(() => { const q = search.trim().toLowerCase(); const filtered = q
+        ? playlists.filter((p) => p.title.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q))
+        : playlists
+      ; return loading ? (
         <div className="py-12 text-center text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
       ) : playlists.length === 0 ? (
         <div className="ds-card px-6 py-14 text-center animate-fade-in">
@@ -138,9 +168,11 @@ export default function Home() {
           <p className="font-500 mb-1" style={{ color: 'var(--text1)' }}>Aún no hay listas</p>
           <p className="text-sm" style={{ color: 'var(--text2)' }}>Crea una para empezar a programar contenido en tus pantallas.</p>
         </div>
+      ) : filtered.length === 0 && q ? (
+        <div className="py-12 text-center text-sm" style={{ color: 'var(--text2)' }}>Sin resultados para "{search}".</div>
       ) : (
         <div className="space-y-2 animate-fade-in">
-          {playlists.map((p) => (
+          {filtered.map((p) => (
             <div
               key={p.id}
               className="ds-card px-5 py-4 flex items-center justify-between group transition-colors"
@@ -192,7 +224,7 @@ export default function Home() {
             </div>
           ))}
         </div>
-      )}
+      ) })()}
     </div>
   )
 }

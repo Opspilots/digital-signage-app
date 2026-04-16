@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { mediaApi } from '../api/client'
 import type { MediaFile } from '../api/types'
+import { useToast } from '../toast'
 
 interface Props {
   selectionMode?: boolean
@@ -15,8 +16,10 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
   const [uploading, setUploading] = useState(false)
   const [dragOver,  setDragOver]  = useState(false)
   const [search,    setSearch]    = useState('')
+  const [multiSel,  setMultiSel]  = useState<Set<string>>(new Set())
   const fileInputRef = useRef<HTMLInputElement>(null)
   const BASE_URL = import.meta.env.VITE_API_URL ?? ''
+  const toast = useToast()
 
   const filteredFiles = search.trim()
     ? files.filter((f) => f.original_name.toLowerCase().includes(search.trim().toLowerCase()))
@@ -34,8 +37,29 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
     try {
       const uploaded = await Promise.all(filesToUpload.map((f) => mediaApi.upload(f)))
       setFiles((prev) => [...uploaded, ...prev])
+      if (!selectionMode) toast.success(`${uploaded.length} archivo${uploaded.length !== 1 ? 's' : ''} subido${uploaded.length !== 1 ? 's' : ''}`)
     } catch (e) { setError(String(e)) }
     finally { setUploading(false) }
+  }
+
+  const toggleMultiSel = (id: string) => {
+    setMultiSel((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const handleBulkDelete = async () => {
+    if (multiSel.size === 0) return
+    if (!confirm(`¿Eliminar ${multiSel.size} archivo${multiSel.size !== 1 ? 's' : ''}?`)) return
+    const ids = Array.from(multiSel)
+    try {
+      await Promise.all(ids.map((id) => mediaApi.delete(id)))
+      setFiles((prev) => prev.filter((f) => !multiSel.has(f.id)))
+      toast.success(`${ids.length} archivo${ids.length !== 1 ? 's' : ''} eliminado${ids.length !== 1 ? 's' : ''}`)
+      setMultiSel(new Set())
+    } catch (e) { setError(String(e)) }
   }
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -58,6 +82,7 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
     try {
       await mediaApi.delete(id)
       setFiles((prev) => prev.filter((f) => f.id !== id))
+      if (!selectionMode) toast.success('Archivo eliminado')
     } catch (e) { setError(String(e)) }
   }
 
@@ -78,9 +103,26 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
             </h1>
             <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{files.length} archivo{files.length !== 1 ? 's' : ''}</p>
           </div>
-          <button onClick={() => fileInputRef.current?.click()} className="ds-btn">
-            Subir
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            {multiSel.size > 0 && (
+              <>
+                <button onClick={handleBulkDelete}
+                  className="text-sm px-3 py-2 rounded-lg font-500 transition-colors"
+                  style={{ color: 'var(--red)', background: 'var(--red-muted)', border: '1px solid rgba(248,113,113,0.3)' }}
+                >
+                  Eliminar {multiSel.size}
+                </button>
+                <button onClick={() => setMultiSel(new Set())}
+                  className="text-sm px-3 py-2 rounded-lg" style={{ color: 'var(--text2)' }}
+                >
+                  Cancelar
+                </button>
+              </>
+            )}
+            <button onClick={() => fileInputRef.current?.click()} className="ds-btn">
+              Subir
+            </button>
+          </div>
         </div>
       )}
 
@@ -153,18 +195,23 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
         <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 ${selectionMode ? 'px-4 pb-4' : ''}`}>
           {filteredFiles.map((file) => {
             const selected = selectedIds?.has(file.id)
+            const checked  = multiSel.has(file.id)
+            const onCardClick = () => {
+              if (selectionMode) { onSelect?.(file); return }
+              if (multiSel.size > 0) toggleMultiSel(file.id)
+            }
             return (
               <div
                 key={file.id}
                 className="relative group rounded-xl overflow-hidden cursor-pointer transition-all"
                 style={{
-                  border: selected ? '2px solid var(--cyan)' : '1px solid var(--border)',
+                  border: (selected || checked) ? '2px solid var(--cyan)' : '1px solid var(--border)',
                   background: 'var(--surface)',
-                  boxShadow: selected ? '0 0 0 1px var(--cyan)' : 'none',
+                  boxShadow: (selected || checked) ? '0 0 0 1px var(--cyan)' : 'none',
                 }}
-                onClick={() => selectionMode && onSelect?.(file)}
-                onMouseEnter={e => { if (!selected) (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border2)' }}
-                onMouseLeave={e => { if (!selected) (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)' }}
+                onClick={onCardClick}
+                onMouseEnter={e => { if (!selected && !checked) (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border2)' }}
+                onMouseLeave={e => { if (!selected && !checked) (e.currentTarget as HTMLDivElement).style.borderColor = 'var(--border)' }}
               >
                 {/* Thumbnail */}
                 <div className="aspect-video relative overflow-hidden" style={{ background: 'var(--surface2)' }}>
@@ -184,12 +231,22 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
                       {isVideo(file) ? '▶' : '⬜'} {ext(file)}
                     </span>
                   </div>
-                  {selected && (
+                  {(selected || checked) && (
                     <div className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-xs font-700"
                       style={{ background: 'var(--cyan)', color: '#000' }}>✓</div>
                   )}
+                  {/* Selection checkbox (shown on hover or when selection is active) */}
+                  {!selectionMode && !checked && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleMultiSel(file.id) }}
+                      className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      style={{ background: 'rgba(0,0,0,0.5)', border: '1.5px solid rgba(255,255,255,0.7)', backdropFilter: 'blur(4px)' }}
+                      title="Seleccionar para acción masiva"
+                      aria-label="Seleccionar"
+                    />
+                  )}
                   {/* Delete overlay */}
-                  {!selectionMode && (
+                  {!selectionMode && multiSel.size === 0 && (
                     <div className="absolute inset-0 flex items-end justify-start p-2 opacity-0 group-hover:opacity-100 transition-opacity"
                       style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.6) 0%, transparent 50%)' }}>
                       <button

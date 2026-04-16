@@ -4,8 +4,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { screenApi, playlistApi } from '../api/client'
 import type { Screen, Playlist } from '../api/types'
 import { useBluetooth, type DiscoveredDevice } from '../hooks/useBluetooth'
-
-interface Toast { id: number; kind: 'warn' | 'info'; message: string }
+import { useToast } from '../toast'
 
 function formatLastSeen(lastSeenAt: string | null | undefined): string {
   if (!lastSeenAt) return 'Nunca'
@@ -27,20 +26,18 @@ export default function Screens() {
   const [newLocation,setNewLocation]= useState('')
   const [copiedId,   setCopiedId]   = useState<string | null>(null)
   const [qrScreen,   setQrScreen]   = useState<Screen | null>(null)
-  const [toasts,     setToasts]     = useState<Toast[]>([])
   const [showPair,   setShowPair]   = useState(false)
   const [pairCode,   setPairCode]   = useState('')
   const [pairName,   setPairName]   = useState('')
   const [pairLoc,    setPairLoc]    = useState('')
   const [pairing,    setPairing]    = useState(false)
+  const [search,     setSearch]     = useState('')
+  const [editingId,  setEditingId]  = useState<string | null>(null)
+  const [editName,   setEditName]   = useState('')
+  const [editLoc,    setEditLoc]    = useState('')
   const prevOnline = useRef<Map<string, boolean>>(new Map())
   const firstLoad  = useRef(true)
-
-  const pushToast = (t: Omit<Toast, 'id'>) => {
-    const id = Date.now() + Math.random()
-    setToasts((prev) => [...prev, { ...t, id }])
-    setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 6000)
-  }
+  const toast = useToast()
 
   const { isSupported: btSupported, isScanning, devices: btDevices, error: btError, scanForDevices, clearDevices, refreshPaired } = useBluetooth()
   const [showBtModal,       setShowBtModal]       = useState(false)
@@ -54,7 +51,9 @@ export default function Screens() {
           s.forEach((screen) => {
             const wasOnline = prevOnline.current.get(screen.id)
             if (wasOnline === true && !screen.online) {
-              pushToast({ kind: 'warn', message: `"${screen.name}" se ha desconectado` })
+              toast.warn(`"${screen.name}" se ha desconectado`)
+            } else if (wasOnline === false && screen.online) {
+              toast.success(`"${screen.name}" está en línea`)
             }
           })
         }
@@ -80,14 +79,17 @@ export default function Screens() {
       const s = await screenApi.create({ name: newName.trim(), location: newLocation.trim() || undefined })
       setScreens((prev) => [s, ...prev])
       setNewName(''); setNewLocation(''); setCreating(false)
+      toast.success(`"${s.name}" registrada`)
     } catch (e) { setError(String(e)) }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar esta pantalla?')) return
+    const s = screens.find((x) => x.id === id)
+    if (!confirm(`¿Eliminar "${s?.name ?? 'esta pantalla'}"?`)) return
     try {
       await screenApi.delete(id)
       setScreens((prev) => prev.filter((s) => s.id !== id))
+      toast.success(`Pantalla eliminada`)
     } catch (e) { setError(String(e)) }
   }
 
@@ -95,6 +97,33 @@ export default function Screens() {
     try {
       const updated = await screenApi.update(screenId, { current_playlist_id: playlistId })
       setScreens((prev) => prev.map((s) => (s.id === screenId ? updated : s)))
+      toast.success(playlistId ? 'Lista asignada' : 'Lista eliminada')
+    } catch (e) { setError(String(e)) }
+  }
+
+  const startEdit = (s: Screen) => {
+    setEditingId(s.id)
+    setEditName(s.name)
+    setEditLoc(s.location ?? '')
+  }
+
+  const saveEdit = async () => {
+    if (!editingId || !editName.trim()) return
+    try {
+      const updated = await screenApi.update(editingId, { name: editName.trim(), location: editLoc.trim() || undefined })
+      setScreens((prev) => prev.map((s) => (s.id === editingId ? updated : s)))
+      setEditingId(null)
+      toast.success('Pantalla actualizada')
+    } catch (e) { setError(String(e)) }
+  }
+
+  const handleUnpair = async (id: string) => {
+    const s = screens.find((x) => x.id === id)
+    if (!confirm(`Desenlazar "${s?.name ?? 'esta pantalla'}"? La pantalla pedirá un nuevo código.`)) return
+    try {
+      await screenApi.unpair(id)
+      setScreens((prev) => prev.filter((s) => s.id !== id))
+      toast.success('Pantalla desenlazada. Mostrará un nuevo código.')
     } catch (e) { setError(String(e)) }
   }
 
@@ -127,7 +156,7 @@ export default function Screens() {
       const s = await screenApi.pairClaim({ code: pairCode.trim().toUpperCase(), name: pairName.trim(), location: pairLoc.trim() || undefined })
       setScreens((prev) => [s, ...prev])
       setShowPair(false); setPairCode(''); setPairName(''); setPairLoc('')
-      pushToast({ kind: 'info', message: `"${s.name}" enlazada correctamente` })
+      toast.success(`"${s.name}" enlazada correctamente`)
     } catch (e) { setError(String(e)) }
     finally { setPairing(false) }
   }
@@ -144,19 +173,6 @@ export default function Screens() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
-      {/* Toasts */}
-      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2" style={{ maxWidth: 'calc(100vw - 2rem)' }}>
-        {toasts.map((t) => (
-          <div key={t.id} className="animate-slide-up rounded-lg px-4 py-3 text-sm shadow-lg"
-            style={t.kind === 'warn'
-              ? { background: 'var(--amber-muted)', border: '1px solid rgba(245,158,11,0.3)', color: 'var(--amber)' }
-              : { background: 'var(--cyan-muted)', border: '1px solid var(--cyan-dim)', color: 'var(--cyan)' }
-            }
-          >
-            {t.kind === 'warn' ? '⚠ ' : '· '}{t.message}
-          </div>
-        ))}
-      </div>
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3 mb-6 sm:mb-8 flex-wrap">
@@ -217,6 +233,27 @@ export default function Screens() {
         </div>
       )}
 
+      {/* Search */}
+      {screens.length > 1 && (
+        <div className="mb-4 relative">
+          <svg
+            width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ color: 'var(--text2)' }}
+          >
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar pantalla por nombre o ubicación…"
+            className="ds-input"
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
+      )}
+
       {/* How to connect guide */}
       {!loading && screens.length === 0 && (
         <div className="ds-card p-6 mb-4 animate-fade-in">
@@ -230,11 +267,16 @@ export default function Screens() {
         </div>
       )}
 
-      {loading ? (
+      {(() => { const q = search.trim().toLowerCase(); const filtered = q
+        ? screens.filter((s) => s.name.toLowerCase().includes(q) || (s.location ?? '').toLowerCase().includes(q))
+        : screens
+      ; return loading ? (
         <div className="py-12 text-center text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
+      ) : filtered.length === 0 && search.trim() ? (
+        <div className="py-12 text-center text-sm" style={{ color: 'var(--text2)' }}>Sin resultados para "{search}".</div>
       ) : (
         <ul className="space-y-3 animate-fade-in">
-          {screens.map((screen) => {
+          {filtered.map((screen) => {
             const playerUrl = getPlayerUrl(screen)
             return (
               <li key={screen.id} className="ds-card p-5 transition-colors"
@@ -242,42 +284,77 @@ export default function Screens() {
                 onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
               >
                 {/* Top row */}
-                <div className="flex items-start justify-between gap-4 mb-4">
-                  <div className="flex items-center gap-3 min-w-0">
+                <div className="flex items-start justify-between gap-4 mb-4 flex-wrap">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div className="relative flex-shrink-0">
                       <div className={`w-2.5 h-2.5 rounded-full ${screen.online ? 'pulse-online' : ''}`}
                         style={{ background: screen.online ? 'var(--green)' : 'var(--border2)' }} />
                     </div>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-600 truncate" style={{ color: 'var(--text1)' }}>{screen.name}</h3>
-                        {screen.location && <span className="text-xs truncate" style={{ color: 'var(--text2)' }}>· {screen.location}</span>}
-                        <span className="text-xs font-500" style={{ color: screen.online ? 'var(--green)' : 'var(--text3)' }}>
-                          {screen.online ? 'En línea' : 'Desconectada'}
-                        </span>
-                      </div>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--text2)' }}>
-                        Última vez: {formatLastSeen(screen.last_seen_at)}
-                      </p>
+                    <div className="min-w-0 flex-1">
+                      {editingId === screen.id ? (
+                        <div className="flex flex-col sm:flex-row gap-2">
+                          <input autoFocus type="text" value={editName} onChange={(e) => setEditName(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null) }}
+                            className="ds-input" placeholder="Nombre" />
+                          <input type="text" value={editLoc} onChange={(e) => setEditLoc(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === 'Enter') saveEdit(); if (e.key === 'Escape') setEditingId(null) }}
+                            className="ds-input" placeholder="Ubicación" />
+                          <div className="flex gap-1">
+                            <button onClick={saveEdit} className="ds-btn text-xs" style={{ padding: '6px 12px' }}>Guardar</button>
+                            <button onClick={() => setEditingId(null)} className="text-xs px-2 py-1 rounded-lg" style={{ color: 'var(--text2)' }}>Cancelar</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h3 className="font-600 truncate" style={{ color: 'var(--text1)' }}>{screen.name}</h3>
+                            {screen.location && <span className="text-xs truncate" style={{ color: 'var(--text2)' }}>· {screen.location}</span>}
+                            <span className="text-xs font-500" style={{ color: screen.online ? 'var(--green)' : 'var(--text3)' }}>
+                              {screen.online ? 'En línea' : 'Desconectada'}
+                            </span>
+                            <button onClick={() => startEdit(screen)}
+                              className="opacity-60 hover:opacity-100 transition-opacity"
+                              style={{ color: 'var(--text2)' }}
+                              title="Editar nombre y ubicación"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              </svg>
+                            </button>
+                          </div>
+                          <p className="text-xs mt-0.5" style={{ color: 'var(--text2)' }}>
+                            Última vez: {formatLastSeen(screen.last_seen_at)}
+                          </p>
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
-                    <Link to={`/screens/${screen.id}/schedules`}
-                      className="text-xs px-2.5 py-1.5 rounded-lg font-500 transition-colors"
-                      style={{ color: 'var(--text2)', border: '1px solid var(--border)' }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--cyan)'; (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--cyan-dim)' }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text2)'; (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--border)' }}
-                    >
-                      Horarios
-                    </Link>
-                    <button onClick={() => handleDelete(screen.id)}
-                      className="text-xs px-2.5 py-1.5 rounded-lg transition-colors"
-                      style={{ color: 'var(--text2)' }}
-                      onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
-                      onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
-                    >Eliminar</button>
-                  </div>
+                  {editingId !== screen.id && (
+                    <div className="flex items-center gap-2 flex-shrink-0 flex-wrap justify-end">
+                      <Link to={`/screens/${screen.id}/schedules`}
+                        className="text-xs px-2.5 py-1.5 rounded-lg font-500 transition-colors"
+                        style={{ color: 'var(--text2)', border: '1px solid var(--border)' }}
+                        onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--cyan)'; (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--cyan-dim)' }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = 'var(--text2)'; (e.currentTarget as HTMLAnchorElement).style.borderColor = 'var(--border)' }}
+                      >
+                        Horarios
+                      </Link>
+                      <button onClick={() => handleUnpair(screen.id)}
+                        className="text-xs px-2.5 py-1.5 rounded-lg transition-colors"
+                        style={{ color: 'var(--text2)' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--amber)')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
+                        title="Vuelve la pantalla a estado pendiente"
+                      >Desenlazar</button>
+                      <button onClick={() => handleDelete(screen.id)}
+                        className="text-xs px-2.5 py-1.5 rounded-lg transition-colors"
+                        style={{ color: 'var(--text2)' }}
+                        onMouseEnter={e => (e.currentTarget.style.color = 'var(--red)')}
+                        onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
+                      >Eliminar</button>
+                    </div>
+                  )}
                 </div>
 
                 {/* Bottom row — playlist + actions */}
@@ -335,7 +412,7 @@ export default function Screens() {
             )
           })}
         </ul>
-      )}
+      ) })()}
 
       {/* Bluetooth Modal */}
       {showBtModal && (

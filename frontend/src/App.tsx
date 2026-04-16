@@ -8,6 +8,7 @@ import PairingScreen from './pages/PairingScreen'
 import Screens from './pages/Screens'
 import ScreenSchedules from './pages/ScreenSchedules'
 import Login from './pages/Login'
+import { ToastProvider } from './toast'
 import { isAuthenticated, onAuthChange, refresh, logout, getCurrentUser } from './auth'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -226,6 +227,7 @@ function AppLayout() {
 
 export default function App() {
   return (
+    <ToastProvider>
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
@@ -242,5 +244,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
+    </ToastProvider>
   )
 }
