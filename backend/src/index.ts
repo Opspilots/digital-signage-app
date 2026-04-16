@@ -6,6 +6,7 @@ import playlistsRouter from './routes/playlists';
 import authRouter from './routes/auth';
 import screensRouter, { screensPublicRouter } from './routes/screens';
 import schedulesRouter from './routes/schedules';
+import usersRouter from './routes/users';
 import { requireAuth } from './middleware/auth';
 
 // Initialize DB (runs migrations on import)
@@ -35,6 +36,7 @@ app.use('/api/media', requireAuth, mediaRouter);
 app.use('/api/playlists', requireAuth, playlistsRouter);
 app.use('/api/screens', requireAuth, screensRouter);
 app.use('/api/screens/:screenId/schedules', requireAuth, schedulesRouter);
+app.use('/api/users', requireAuth, usersRouter);
 
 // Serve frontend static files (SPA fallback)
 const FRONTEND_DIST = process.env.FRONTEND_DIST

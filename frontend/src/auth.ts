@@ -1,4 +1,4 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 const REFRESH_TOKEN_KEY = 'ds_refresh_token'
 
 // Access token: in-memory only (not persisted, XSS-safe)
@@ -28,6 +28,16 @@ export function getAccessToken(): string | null {
 
 export function isAuthenticated(): boolean {
   return accessToken !== null
+}
+
+export function getCurrentUser(): { sub: string; username: string; role: string } | null {
+  if (!accessToken) return null
+  try {
+    const payload = JSON.parse(atob(accessToken.split('.')[1])) as { sub: string; username: string; role?: string }
+    return { sub: payload.sub, username: payload.username, role: payload.role ?? 'editor' }
+  } catch {
+    return null
+  }
 }
 
 function parseExpiry(token: string): number | null {

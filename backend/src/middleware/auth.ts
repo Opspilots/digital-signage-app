@@ -9,6 +9,7 @@ export const JWT_REFRESH_TTL = '7d';
 export interface AuthPayload {
   sub: string;
   username: string;
+  role: string;
   type: 'access' | 'refresh';
 }
 
@@ -40,4 +41,13 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   } catch {
     res.status(401).json({ error: 'Unauthorized' });
   }
+}
+
+export function requireAdmin(req: Request, res: Response, next: NextFunction): void {
+  const user = (req as Request & { user?: AuthPayload }).user;
+  if (!user || user.role !== 'admin') {
+    res.status(403).json({ error: 'Admin access required' });
+    return;
+  }
+  next();
 }

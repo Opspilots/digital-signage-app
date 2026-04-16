@@ -46,7 +46,11 @@ export default function Screens() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    const interval = setInterval(load, 30_000)
+    return () => clearInterval(interval)
+  }, [])
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -306,6 +310,13 @@ export default function Screens() {
                     >
                       {copiedToken === screen.token ? '✓ Copied' : 'Copy token'}
                     </button>
+                    <Link
+                      to={`/screens/${screen.id}/schedules`}
+                      state={{ screenName: screen.name }}
+                      className="text-sm text-indigo-500 hover:text-indigo-700 font-medium"
+                    >
+                      Schedules
+                    </Link>
                     <button
                       onClick={() => handleDelete(screen.id)}
                       className="text-sm text-red-500 hover:text-red-700"

@@ -85,6 +85,15 @@ if (!mediaInfo.some(col => col.name === 'thumbnail_path')) {
   db.exec('ALTER TABLE media_files ADD COLUMN thumbnail_path TEXT');
 }
 
+// Add role and email columns to users if missing
+const usersInfo = db.prepare('PRAGMA table_info(users)').all() as Array<{ name: string }>;
+if (!usersInfo.some(col => col.name === 'role')) {
+  db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'admin'");
+}
+if (!usersInfo.some(col => col.name === 'email')) {
+  db.exec('ALTER TABLE users ADD COLUMN email TEXT');
+}
+
 // Column rename migrations for existing databases
 const playlistsInfo = db.prepare('PRAGMA table_info(playlists)').all() as Array<{ name: string }>;
 if (playlistsInfo.some(col => col.name === 'name')) {
@@ -106,8 +115,8 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin';
 const existingAdmin = db.prepare('SELECT id FROM users WHERE username = ?').get(ADMIN_USERNAME);
 if (!existingAdmin) {
   const hash = bcrypt.hashSync(ADMIN_PASSWORD, 12);
-  db.prepare('INSERT INTO users (id, username, password_hash) VALUES (?, ?, ?)').run(
-    uuidv4(), ADMIN_USERNAME, hash
+  db.prepare('INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)').run(
+    uuidv4(), ADMIN_USERNAME, hash, 'admin'
   );
   console.log(`[db] Default admin user '${ADMIN_USERNAME}' created`);
 }

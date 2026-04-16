@@ -59,19 +59,11 @@ function SortableItem({
 
       <div className="w-20 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-gray-900">
         {item.media_file && (
-          isVideo ? (
-            <video
-              src={`${BASE_URL}${item.media_file.url}`}
-              className="w-full h-full object-cover"
-              muted
-            />
-          ) : (
-            <img
-              src={`${BASE_URL}${item.media_file.url}`}
-              alt={item.media_file.original_name}
-              className="w-full h-full object-cover"
-            />
-          )
+          <img
+            src={`${BASE_URL}${item.media_file.thumbnail_url ?? item.media_file.url}`}
+            alt={item.media_file.original_name}
+            className="w-full h-full object-cover"
+          />
         )}
       </div>
 

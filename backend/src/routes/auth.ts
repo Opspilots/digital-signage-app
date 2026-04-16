@@ -10,6 +10,7 @@ interface UserRow {
   id: string;
   username: string;
   password_hash: string;
+  role: string;
 }
 
 // POST /api/auth/login
@@ -27,7 +28,7 @@ router.post('/login', (req: Request, res: Response) => {
     return;
   }
 
-  const basePayload = { sub: user.id, username: user.username };
+  const basePayload = { sub: user.id, username: user.username, role: user.role ?? 'editor' };
   const accessToken = jwt.sign({ ...basePayload, type: 'access' }, JWT_SECRET, { expiresIn: JWT_ACCESS_TTL });
   const refreshToken = jwt.sign({ ...basePayload, type: 'refresh' }, JWT_SECRET, { expiresIn: JWT_REFRESH_TTL });
 
@@ -57,8 +58,9 @@ router.post('/refresh', (req: Request, res: Response) => {
       return;
     }
 
+    const userWithRole = db.prepare('SELECT role FROM users WHERE id = ?').get(user.id) as { role: string } | undefined;
     const accessToken = jwt.sign(
-      { sub: user.id, username: user.username, type: 'access' },
+      { sub: user.id, username: user.username, role: userWithRole?.role ?? 'editor', type: 'access' },
       JWT_SECRET,
       { expiresIn: JWT_ACCESS_TTL }
     );

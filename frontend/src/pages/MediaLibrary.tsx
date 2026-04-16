@@ -65,7 +65,7 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
   }
 
   const isVideo = (f: MediaFile) => f.mime_type.startsWith('video/')
-  const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+  const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
   return (
     <div className={selectionMode ? '' : 'p-6 max-w-6xl mx-auto'}>
@@ -136,19 +136,11 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
                 }`}
                 onClick={() => selectionMode && onSelect?.(file)}
               >
-                {isVideo(file) ? (
-                  <video
-                    src={`${BASE_URL}${file.url}`}
-                    className="w-full aspect-video object-cover bg-gray-900"
-                    muted
-                  />
-                ) : (
-                  <img
-                    src={file.thumbnail_url ? `${BASE_URL}${file.thumbnail_url}` : `${BASE_URL}${file.url}`}
-                    alt={file.original_name}
-                    className="w-full aspect-video object-cover bg-gray-900"
-                  />
-                )}
+                <img
+                  src={`${BASE_URL}${file.thumbnail_url ?? file.url}`}
+                  alt={file.original_name}
+                  className="w-full aspect-video object-cover bg-gray-900"
+                />
 
                 {selected && (
                   <div className="absolute top-2 right-2 bg-indigo-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">

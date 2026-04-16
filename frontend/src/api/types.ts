@@ -56,3 +56,23 @@ export interface Screen {
   created_at: string
   updated_at: string
 }
+
+export interface Schedule {
+  id: string
+  screen_id: string
+  playlist_id: string
+  playlist_title: string
+  days_of_week: number
+  start_time: string
+  end_time: string
+  priority: number
+  created_at: string
+}
+
+export interface User {
+  id: string
+  username: string
+  role: string
+  email?: string | null
+  created_at: string
+}

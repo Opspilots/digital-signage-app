@@ -5,8 +5,10 @@ import MediaLibrary from './pages/MediaLibrary'
 import PlaylistEditor from './pages/PlaylistEditor'
 import PlaylistPlayer from './pages/PlaylistPlayer'
 import Screens from './pages/Screens'
+import ScreenSchedules from './pages/ScreenSchedules'
+import Users from './pages/Users'
 import Login from './pages/Login'
-import { isAuthenticated, onAuthChange, refresh, logout } from './auth'
+import { isAuthenticated, onAuthChange, refresh, logout, getCurrentUser } from './auth'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation()
@@ -37,11 +39,14 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
 
 function AppLayout() {
   const navigate = useNavigate()
+  const currentUser = getCurrentUser()
+  const isAdmin = currentUser?.role === 'admin'
 
   const navLinks = [
-    { to: '/playlists', label: 'Playlists', exact: false },
-    { to: '/media', label: 'Media Library', exact: false },
-    { to: '/screens', label: 'Screens', exact: false },
+    { to: '/playlists', label: 'Playlists' },
+    { to: '/media', label: 'Media Library' },
+    { to: '/screens', label: 'Screens' },
+    ...(isAdmin ? [{ to: '/users', label: 'Users' }] : []),
   ]
 
   const handleLogout = () => {
@@ -62,11 +67,11 @@ function AppLayout() {
 
         {/* Nav links */}
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {navLinks.map(({ to, label, exact }) => (
+          {navLinks.map(({ to, label }) => (
             <NavLink
               key={to}
               to={to}
-              end={exact}
+              end={false}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                   isActive
@@ -119,6 +124,8 @@ export default function App() {
           <Route path="/media" element={<MediaLibrary />} />
           <Route path="/playlists/:id/edit" element={<PlaylistEditor />} />
           <Route path="/screens" element={<Screens />} />
+          <Route path="/screens/:screenId/schedules" element={<ScreenSchedules />} />
+          <Route path="/users" element={<Users />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

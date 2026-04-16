@@ -1,7 +1,7 @@
-import type { MediaFile, Playlist, PlaylistItem, Screen } from './types'
+import type { MediaFile, Playlist, PlaylistItem, Screen, Schedule, User } from './types'
 import { getAccessToken, refresh, logout } from '../auth'
 
-export const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+export const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
 function authHeaders(): Record<string, string> {
   const token = getAccessToken()
@@ -107,6 +107,31 @@ export const screenApi = {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}` },
     }).then((r) => r.json() as Promise<{ screen_id: string; current_playlist_id: string | null; playlist: { id: string; title: string } | null }>),
+}
+
+// Schedules
+export const scheduleApi = {
+  list: (screenId: string) => request<Schedule[]>(`/api/screens/${screenId}/schedules`),
+  create: (
+    screenId: string,
+    data: { playlist_id: string; days_of_week: number; start_time: string; end_time: string; priority?: number }
+  ) =>
+    request<Schedule & { warnings?: string[] }>(`/api/screens/${screenId}/schedules`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  delete: (screenId: string, scheduleId: string) =>
+    request<void>(`/api/screens/${screenId}/schedules/${scheduleId}`, { method: 'DELETE' }),
+}
+
+// Users
+export const userApi = {
+  list: () => request<User[]>('/api/users'),
+  create: (data: { username: string; password: string; role?: string; email?: string }) =>
+    request<User>('/api/users', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { role?: string; email?: string; password?: string }) =>
+    request<User>(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) }),
+  delete: (id: string) => request<void>(`/api/users/${id}`, { method: 'DELETE' }),
 }
 
 // Playlist items
