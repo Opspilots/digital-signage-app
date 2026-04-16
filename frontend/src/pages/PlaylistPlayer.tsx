@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { playlistApi, screenApi } from '../api/client'
+import { playlistApi, screenApi, BASE_URL } from '../api/client'
 import type { Playlist, PlaylistItem } from '../api/types'
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
-const SCREEN_TOKEN = import.meta.env.VITE_SCREEN_TOKEN as string | undefined
 const HEARTBEAT_INTERVAL_MS = 30_000
 
 export default function PlaylistPlayer() {
@@ -14,6 +12,7 @@ export default function PlaylistPlayer() {
   const navigate = useNavigate()
   const [playlist, setPlaylist] = useState<Playlist | null>(null)
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | undefined>(id)
+  const currentPlaylistIdRef = useRef(currentPlaylistId)
   const [items, setItems] = useState<PlaylistItem[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
@@ -25,13 +24,18 @@ export default function PlaylistPlayer() {
   const hudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
+  // Keep ref in sync so the heartbeat closure always reads the latest playlist id
+  useEffect(() => {
+    currentPlaylistIdRef.current = currentPlaylistId
+  }, [currentPlaylistId])
+
   // Load playlist by id
   useEffect(() => {
     const playlistId = currentPlaylistId
     if (!playlistId) return
     setLoading(true)
     playlistApi
-      .get(playlistId, SCREEN_TOKEN)
+      .get(playlistId, screenToken)
       .then((p) => {
         setPlaylist(p)
         setItems(p.items ?? [])
@@ -47,7 +51,7 @@ export default function PlaylistPlayer() {
 
     const sendHeartbeat = () => {
       screenApi.heartbeat(screenToken).then((data) => {
-        if (data.current_playlist_id && data.current_playlist_id !== currentPlaylistId) {
+        if (data.current_playlist_id && data.current_playlist_id !== currentPlaylistIdRef.current) {
           setCurrentPlaylistId(data.current_playlist_id)
         }
       }).catch(() => {/* ignore heartbeat errors */})
@@ -88,28 +92,16 @@ export default function PlaylistPlayer() {
     }
   }, [currentIndex, items, goTo])
 
-  // Keyboard shortcuts
+  // Keyboard shortcuts — use goTo so the auto-advance timer is properly reset
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') navigate(-1)
-      if (e.key === 'ArrowRight') {
-        setCurrentIndex((ci) => {
-          const nextIdx = ci + 1 < items.length ? ci + 1 : 0
-          setTransitionKey((k) => k + 1)
-          return nextIdx
-        })
-      }
-      if (e.key === 'ArrowLeft') {
-        setCurrentIndex((ci) => {
-          const prevIdx = ci - 1 >= 0 ? ci - 1 : items.length - 1
-          setTransitionKey((k) => k + 1)
-          return prevIdx
-        })
-      }
+      if (e.key === 'ArrowRight') goTo(currentIndex + 1 < items.length ? currentIndex + 1 : 0)
+      if (e.key === 'ArrowLeft') goTo(currentIndex - 1 >= 0 ? currentIndex - 1 : items.length - 1)
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [items.length, navigate])
+  }, [items.length, navigate, currentIndex, goTo])
 
   // HUD on hover
   const handleMouseMove = () => {
@@ -155,6 +147,26 @@ export default function PlaylistPlayer() {
       ? 'transition-fade-enter'
       : transitionType === 'slide'
       ? 'transition-slide-enter'
+      : transitionType === 'zoom-in'
+      ? 'transition-zoom-in-enter'
+      : transitionType === 'zoom-out'
+      ? 'transition-zoom-out-enter'
+      : transitionType === 'slide-left'
+      ? 'transition-slide-left-enter'
+      : transitionType === 'slide-up'
+      ? 'transition-slide-up-enter'
+      : transitionType === 'slide-down'
+      ? 'transition-slide-down-enter'
+      : transitionType === 'blur-in'
+      ? 'transition-blur-in-enter'
+      : transitionType === 'flip'
+      ? 'transition-flip-enter'
+      : transitionType === 'rotate-in'
+      ? 'transition-rotate-in-enter'
+      : transitionType === 'bounce-in'
+      ? 'transition-bounce-in-enter'
+      : transitionType === 'wipe-right'
+      ? 'transition-wipe-right-enter'
       : ''
 
   const style =
@@ -176,10 +188,8 @@ export default function PlaylistPlayer() {
           style={style}
           autoPlay
           muted={false}
-          onEnded={() => {
-            const nextIdx = currentIndex + 1 < items.length ? currentIndex + 1 : 0
-            goTo(nextIdx)
-          }}
+          onEnded={() => goTo(currentIndex + 1 < items.length ? currentIndex + 1 : 0)}
+          onError={() => goTo(currentIndex + 1 < items.length ? currentIndex + 1 : 0)}
         />
       ) : (
         <img

@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
@@ -94,7 +94,15 @@ function formatMediaFile(row: Record<string, unknown>) {
 }
 
 // POST /api/media — upload a file
-router.post('/', upload.single('file'), async (req: Request, res: Response) => {
+router.post('/', (req: Request, res: Response, next: NextFunction) => {
+  upload.single('file')(req, res, (err) => {
+    if (err) {
+      res.status(400).json({ error: err instanceof Error ? err.message : 'Upload error' });
+      return;
+    }
+    next();
+  });
+}, async (req: Request, res: Response) => {
   const file = req.file;
   if (!file) {
     res.status(400).json({ error: 'No file uploaded' });

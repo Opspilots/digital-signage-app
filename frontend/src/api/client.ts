@@ -1,7 +1,7 @@
 import type { MediaFile, Playlist, PlaylistItem, Screen } from './types'
 import { getAccessToken, refresh, logout } from '../auth'
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+export const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
 function authHeaders(): Record<string, string> {
   const token = getAccessToken()
@@ -11,8 +11,8 @@ function authHeaders(): Record<string, string> {
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const makeRequest = () =>
     fetch(`${BASE_URL}${path}`, {
-      headers: { 'Content-Type': 'application/json', ...authHeaders(), ...options?.headers },
       ...options,
+      headers: { 'Content-Type': 'application/json', ...authHeaders(), ...options?.headers },
     })
 
   let res = await makeRequest()
@@ -65,7 +65,7 @@ export const mediaApi = {
       fetch(`${BASE_URL}/api/media/${id}`, { method: 'DELETE', headers: authHeaders() })
     let res = await makeDelete()
     if (res.status === 401) {
-      try { await refresh() } catch { logout() }
+      try { await refresh() } catch { logout(); throw new Error('Session expired. Please log in again.') }
       res = await makeDelete()
     }
     if (!res.ok) throw new Error(`Delete failed: ${res.status}`)

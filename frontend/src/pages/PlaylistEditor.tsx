@@ -17,12 +17,10 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { playlistApi, itemApi } from '../api/client'
+import { playlistApi, itemApi, BASE_URL } from '../api/client'
 import type { Playlist, PlaylistItem } from '../api/types'
 import MediaLibrary from './MediaLibrary'
 import type { MediaFile } from '../api/types'
-
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
 function SortableItem({
   item,
@@ -48,18 +46,18 @@ function SortableItem({
     <div
       ref={setNodeRef}
       style={style}
-      className="bg-white border border-gray-200 rounded-lg flex items-start gap-3 p-3"
+      className="bg-gray-800 ring-1 ring-gray-700 hover:ring-gray-600 rounded-xl flex items-start gap-3 p-3 transition-colors"
     >
       <button
         {...attributes}
         {...listeners}
-        className="mt-1 text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing flex-shrink-0"
+        className="mt-1 text-gray-500 hover:text-gray-300 cursor-grab active:cursor-grabbing flex-shrink-0 text-lg"
         title="Drag to reorder"
       >
         ⠿
       </button>
 
-      <div className="w-20 h-14 flex-shrink-0 rounded overflow-hidden bg-gray-100">
+      <div className="w-20 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-gray-900">
         {item.media_file && (
           isVideo ? (
             <video
@@ -78,36 +76,46 @@ function SortableItem({
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-gray-800 truncate">
+        <p className="text-sm font-medium text-gray-100 truncate">
           {item.media_file?.original_name ?? item.media_file_id}
         </p>
 
-        <div className="flex flex-wrap gap-3 mt-2">
-          <label className="flex items-center gap-1.5 text-xs text-gray-600">
+        <div className="flex flex-wrap gap-x-4 gap-y-2 mt-2 items-center">
+          <label className="flex items-center gap-1.5 text-xs text-gray-400">
             Duration (s)
             <input
               type="number"
               min={1}
               value={item.display_duration}
               onChange={(e) => onUpdate(item.id, 'display_duration', Number(e.target.value))}
-              className="w-16 border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-16 bg-gray-700 border border-gray-600 rounded-md px-2 py-1 text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </label>
 
-          <label className="flex items-center gap-1.5 text-xs text-gray-600">
+          <label className="flex items-center gap-1.5 text-xs text-gray-400">
             Transition
             <select
               value={item.transition_type}
               onChange={(e) => onUpdate(item.id, 'transition_type', e.target.value)}
-              className="border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="bg-gray-700 border border-gray-600 rounded-md px-2 py-1 text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             >
               <option value="none">None</option>
               <option value="fade">Fade</option>
               <option value="slide">Slide</option>
+              <option value="zoom-in">Zoom In</option>
+              <option value="zoom-out">Zoom Out</option>
+              <option value="slide-left">Slide from Left</option>
+              <option value="slide-up">Slide Up</option>
+              <option value="slide-down">Slide Down</option>
+              <option value="blur-in">Blur In</option>
+              <option value="flip">Flip</option>
+              <option value="rotate-in">Rotate In</option>
+              <option value="bounce-in">Bounce In</option>
+              <option value="wipe-right">Wipe Right</option>
             </select>
           </label>
 
-          <label className="flex items-center gap-1.5 text-xs text-gray-600">
+          <label className="flex items-center gap-1.5 text-xs text-gray-400">
             Trans. duration (ms)
             <input
               type="number"
@@ -115,7 +123,7 @@ function SortableItem({
               step={100}
               value={item.transition_duration}
               onChange={(e) => onUpdate(item.id, 'transition_duration', Number(e.target.value))}
-              className="w-20 border border-gray-300 rounded px-2 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-20 bg-gray-700 border border-gray-600 rounded-md px-2 py-1 text-xs text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
             />
           </label>
         </div>
@@ -123,7 +131,7 @@ function SortableItem({
 
       <button
         onClick={() => onRemove(item.id)}
-        className="text-red-400 hover:text-red-600 text-sm flex-shrink-0 mt-1"
+        className="text-gray-500 hover:text-red-400 text-xl transition-colors flex-shrink-0 mt-1"
         title="Remove"
       >
         ✕
@@ -166,6 +174,14 @@ export default function PlaylistEditor() {
 
   useEffect(() => { load() }, [load])
 
+  // Warn user if they try to navigate away with unsaved title/description changes
+  useEffect(() => {
+    if (!dirty) return
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = '' }
+    window.addEventListener('beforeunload', handler)
+    return () => window.removeEventListener('beforeunload', handler)
+  }, [dirty])
+
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
@@ -183,21 +199,25 @@ export default function PlaylistEditor() {
   }
 
   const handleItemUpdate = async (itemId: string, field: string, value: unknown) => {
-    setItems((prev) =>
-      prev.map((i) => (i.id === itemId ? { ...i, [field]: value } : i))
+    const prev = items
+    setItems((prevItems) =>
+      prevItems.map((i) => (i.id === itemId ? { ...i, [field]: value } : i))
     )
     try {
       await itemApi.update(id!, itemId, { [field]: value } as Partial<PlaylistItem>)
     } catch (e) {
+      setItems(prev)
       setError(String(e))
     }
   }
 
   const handleItemRemove = async (itemId: string) => {
-    setItems((prev) => prev.filter((i) => i.id !== itemId))
+    const prev = items
+    setItems((prevItems) => prevItems.filter((i) => i.id !== itemId))
     try {
       await itemApi.remove(id!, itemId)
     } catch (e) {
+      setItems(prev)
       setError(String(e))
     }
   }
@@ -230,117 +250,124 @@ export default function PlaylistEditor() {
   }
 
   if (loading) {
-    return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-500">Loading…</div>
+    return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-400">Loading…</div>
   }
 
   if (!playlist) {
-    return <div className="min-h-screen bg-gray-50 flex items-center justify-center text-red-500">{error ?? 'Not found'}</div>
+    return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-red-400">{error ?? 'Not found'}</div>
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Link to="/" className="text-gray-400 hover:text-gray-600 text-sm">← Home</Link>
-          <span className="text-gray-300">|</span>
-          <span className="text-sm text-gray-600">Editing playlist</span>
+    <div className="p-6 max-w-4xl mx-auto">
+      {/* Page header bar */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <p className="text-xs text-gray-500 mb-0.5 uppercase tracking-wide">Editing Playlist</p>
+          <h1 className="text-2xl font-bold text-gray-100">{titleDraft || 'Untitled'}</h1>
         </div>
         <div className="flex gap-3">
           <button
             onClick={handleSave}
             disabled={saving || !dirty}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
           >
             {saving ? 'Saving…' : 'Save'}
           </button>
           <Link
             to={`/playlists/${id}/play`}
-            className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
           >
             ▶ Play
           </Link>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
-            {error}
-          </div>
-        )}
-
-        <div className="bg-white border border-gray-200 rounded-lg p-5 mb-6">
-          <input
-            type="text"
-            value={titleDraft}
-            onChange={(e) => { setTitleDraft(e.target.value); setDirty(true) }}
-            className="w-full text-2xl font-bold text-gray-900 border-0 border-b border-transparent focus:border-blue-400 focus:outline-none pb-1 mb-3"
-            placeholder="Playlist title"
-          />
-          <textarea
-            value={descDraft}
-            onChange={(e) => { setDescDraft(e.target.value); setDirty(true) }}
-            className="w-full text-sm text-gray-600 border-0 focus:outline-none resize-none"
-            placeholder="Description (optional)"
-            rows={2}
-          />
+      {error && (
+        <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-4 text-sm">
+          {error}
         </div>
+      )}
 
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-800">
-            Items ({items.length})
-          </h2>
-          <button
-            onClick={() => setShowMedia(!showMedia)}
-            className="text-sm bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 font-medium"
-          >
-            + Add media
-          </button>
+      {/* Metadata panel */}
+      <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 mb-6">
+        <input
+          type="text"
+          value={titleDraft}
+          onChange={(e) => { setTitleDraft(e.target.value); setDirty(true) }}
+          className="w-full text-2xl font-bold text-gray-100 bg-transparent border-0 border-b border-gray-700 focus:border-indigo-500 focus:outline-none pb-1 mb-3"
+          placeholder="Playlist title"
+        />
+        <textarea
+          value={descDraft}
+          onChange={(e) => { setDescDraft(e.target.value); setDirty(true) }}
+          className="w-full text-sm text-gray-400 bg-transparent border-0 focus:outline-none resize-none"
+          placeholder="Description (optional)"
+          rows={2}
+        />
+      </div>
+
+      {/* Items section header */}
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-100">
+          Items <span className="text-gray-500 font-normal text-base">({items.length})</span>
+        </h2>
+        <button
+          onClick={() => setShowMedia(!showMedia)}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+        >
+          + Add Media
+        </button>
+      </div>
+
+      {/* Media picker panel */}
+      {showMedia && (
+        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl mb-6 overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-700 flex items-center justify-between">
+            <span className="text-sm font-medium text-gray-200">Select media to add</span>
+            <button
+              onClick={() => setShowMedia(false)}
+              className="text-gray-400 hover:text-gray-200 text-lg leading-none transition-colors"
+            >
+              ×
+            </button>
+          </div>
+          <div className="max-h-96 overflow-y-auto bg-gray-900">
+            <MediaLibrary
+              selectionMode
+              selectedIds={new Set(items.map((i) => i.media_file_id))}
+              onSelect={(file) => {
+                handleMediaSelect(file)
+              }}
+            />
+          </div>
         </div>
+      )}
 
-        {showMedia && (
-          <div className="bg-white border border-gray-200 rounded-lg mb-6 overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
-              <span className="text-sm font-medium text-gray-700">Select media to add</span>
-              <button onClick={() => setShowMedia(false)} className="text-gray-400 hover:text-gray-600 text-lg leading-none">×</button>
+      {/* Items list */}
+      {items.length === 0 ? (
+        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl px-5 py-12 text-center text-gray-500">
+          No items yet. Click "+ Add Media" to get started.
+        </div>
+      ) : (
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+            <div className="space-y-2">
+              {items.map((item) => (
+                <SortableItem
+                  key={item.id}
+                  item={item}
+                  onUpdate={handleItemUpdate}
+                  onRemove={handleItemRemove}
+                />
+              ))}
             </div>
-            <div className="max-h-96 overflow-y-auto">
-              <MediaLibrary
-                selectionMode
-                selectedIds={new Set(items.map((i) => i.media_file_id))}
-                onSelect={(file) => {
-                  handleMediaSelect(file)
-                }}
-              />
-            </div>
-          </div>
-        )}
-
-        {items.length === 0 ? (
-          <div className="text-center text-gray-400 py-12 bg-white border border-gray-200 rounded-lg">
-            No items yet. Click "+ Add media" to get started.
-          </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={items.map((i) => i.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-2">
-                {items.map((item) => (
-                  <SortableItem
-                    key={item.id}
-                    item={item}
-                    onUpdate={handleItemUpdate}
-                    onRemove={handleItemRemove}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
-        )}
-      </main>
+          </SortableContext>
+        </DndContext>
+      )}
     </div>
   )
 }

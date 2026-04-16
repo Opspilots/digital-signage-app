@@ -47,6 +47,15 @@ router.post('/', (req: Request, res: Response) => {
   res.status(201).json(formatScreen(row));
 });
 
+// GET /api/screens/ble-info — BLE advertisement info for screen devices
+router.get('/ble-info', (_req: Request, res: Response) => {
+  res.json({
+    serviceUUID: '12345678-1234-5678-1234-56789abcdef0',
+    deviceName: 'SignageScreen',
+    version: '1.0',
+  });
+});
+
 // GET /api/screens/:id — get single screen
 router.get('/:id', (req: Request, res: Response) => {
   const { id } = req.params;

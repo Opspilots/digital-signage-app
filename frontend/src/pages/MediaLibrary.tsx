@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { Link } from 'react-router-dom'
 import { mediaApi } from '../api/client'
 import type { MediaFile } from '../api/types'
 
@@ -69,113 +68,113 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
   const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className={selectionMode ? '' : 'p-6 max-w-6xl mx-auto'}>
       {!selectionMode && (
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link to="/" className="text-gray-400 hover:text-gray-600 text-sm">
-              ← Home
-            </Link>
-            <h1 className="text-2xl font-bold text-gray-900">Media Library</h1>
-          </div>
-        </header>
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-2xl font-bold text-gray-100">Media Library</h1>
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+          >
+            Upload
+          </button>
+        </div>
       )}
 
-      <main className={selectionMode ? 'p-4' : 'max-w-6xl mx-auto px-6 py-8'}>
-        {selectionMode && (
-          <p className="text-sm text-blue-600 font-medium mb-4">
-            Click items to add them to the playlist
-          </p>
-        )}
+      {selectionMode && (
+        <p className="text-sm text-indigo-400 font-medium mb-4 px-4 pt-4">
+          Click items to add them to the playlist
+        </p>
+      )}
 
-        <div
-          className={`border-2 border-dashed rounded-xl p-6 mb-6 text-center cursor-pointer transition-colors ${
-            dragOver
-              ? 'border-blue-400 bg-blue-50'
-              : 'border-gray-300 bg-white hover:border-gray-400'
-          }`}
-          onClick={() => fileInputRef.current?.click()}
-          onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*,video/*"
-            multiple
-            className="hidden"
-            onChange={handleFileInput}
-          />
-          <p className="text-gray-500 text-sm">
-            {uploading ? 'Uploading…' : 'Drop files here or click to upload (images & videos)'}
-          </p>
+      {/* Dropzone */}
+      <div
+        className={`border-2 border-dashed rounded-xl p-10 mb-6 text-center cursor-pointer transition-colors ${
+          dragOver
+            ? 'border-indigo-500 bg-indigo-950/30'
+            : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
+        } ${selectionMode ? 'mx-4' : ''}`}
+        onClick={() => fileInputRef.current?.click()}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={handleDrop}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,video/*"
+          multiple
+          className="hidden"
+          onChange={handleFileInput}
+        />
+        <p className="text-gray-400 text-sm">
+          {uploading ? 'Uploading…' : 'Drop files here or click to upload (images & videos)'}
+        </p>
+      </div>
+
+      {error && (
+        <div className={`bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-4 text-sm ${selectionMode ? 'mx-4' : ''}`}>
+          {error}
         </div>
+      )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
-            {error}
-          </div>
-        )}
+      {loading ? (
+        <div className="text-center text-gray-400 py-12">Loading…</div>
+      ) : files.length === 0 ? (
+        <div className="text-center text-gray-500 py-12">No media files yet.</div>
+      ) : (
+        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 ${selectionMode ? 'px-4 pb-4' : ''}`}>
+          {files.map((file) => {
+            const selected = selectedIds?.has(file.id)
+            return (
+              <div
+                key={file.id}
+                className={`relative group rounded-xl overflow-hidden ring-2 transition-all cursor-pointer ${
+                  selected
+                    ? 'ring-indigo-500'
+                    : 'ring-gray-700 hover:ring-gray-500'
+                }`}
+                onClick={() => selectionMode && onSelect?.(file)}
+              >
+                {isVideo(file) ? (
+                  <video
+                    src={`${BASE_URL}${file.url}`}
+                    className="w-full aspect-video object-cover bg-gray-900"
+                    muted
+                  />
+                ) : (
+                  <img
+                    src={file.thumbnail_url ? `${BASE_URL}${file.thumbnail_url}` : `${BASE_URL}${file.url}`}
+                    alt={file.original_name}
+                    className="w-full aspect-video object-cover bg-gray-900"
+                  />
+                )}
 
-        {loading ? (
-          <div className="text-center text-gray-500 py-12">Loading…</div>
-        ) : files.length === 0 ? (
-          <div className="text-center text-gray-400 py-12">No media files yet.</div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {files.map((file) => {
-              const selected = selectedIds?.has(file.id)
-              return (
-                <div
-                  key={file.id}
-                  className={`relative group rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
-                    selected
-                      ? 'border-blue-500 ring-2 ring-blue-300'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => selectionMode && onSelect?.(file)}
-                >
-                  {isVideo(file) ? (
-                    <video
-                      src={`${BASE_URL}${file.url}`}
-                      className="w-full aspect-video object-cover bg-black"
-                      muted
-                    />
-                  ) : (
-                    <img
-                      src={file.thumbnail_url ? `${BASE_URL}${file.thumbnail_url}` : `${BASE_URL}${file.url}`}
-                      alt={file.original_name}
-                      className="w-full aspect-video object-cover bg-gray-100"
-                    />
-                  )}
-
-                  {selected && (
-                    <div className="absolute top-2 right-2 bg-blue-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
-                      ✓
-                    </div>
-                  )}
-
-                  <div className="p-2 bg-white">
-                    <p className="text-xs text-gray-600 truncate" title={file.original_name}>
-                      {file.original_name}
-                    </p>
+                {selected && (
+                  <div className="absolute top-2 right-2 bg-indigo-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold">
+                    ✓
                   </div>
+                )}
 
-                  {!selectionMode && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleDelete(file.id) }}
-                      className="absolute top-2 left-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      Delete
-                    </button>
-                  )}
+                <div className="px-2.5 py-2 bg-gray-900">
+                  <p className="text-xs text-gray-300 truncate" title={file.original_name}>
+                    {file.original_name}
+                  </p>
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </main>
+
+                {!selectionMode && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleDelete(file.id) }}
+                    className="absolute top-2 left-2 bg-red-600 hover:bg-red-500 text-white text-xs px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

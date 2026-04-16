@@ -26,7 +26,9 @@ function schedulesOverlap(
 }
 
 function validateTimeFormat(t: string): boolean {
-  return /^\d{2}:\d{2}$/.test(t);
+  if (!/^\d{2}:\d{2}$/.test(t)) return false;
+  const [h, m] = t.split(':').map(Number);
+  return h >= 0 && h <= 23 && m >= 0 && m <= 59;
 }
 
 // GET /api/screens/:screenId/schedules

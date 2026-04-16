@@ -251,7 +251,10 @@ router.put('/:id/items', (req: Request, res: Response) => {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
       const media = getMedia.get(item.media_file_id) as { mime_type: string; duration_seconds: number | null } | undefined;
-      const defaultDuration = media?.mime_type.startsWith('video/') && media?.duration_seconds
+      if (!media) {
+        throw new Error(`Media file not found: ${item.media_file_id}`);
+      }
+      const defaultDuration = media.mime_type.startsWith('video/') && media.duration_seconds
         ? Math.round(media.duration_seconds)
         : 5;
       insert.run(
@@ -265,7 +268,13 @@ router.put('/:id/items', (req: Request, res: Response) => {
     db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), id);
   });
 
-  replaceItems();
+  try {
+    replaceItems();
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Transaction failed';
+    res.status(400).json({ error: msg });
+    return;
+  }
   res.json(getItems(id));
 });
 

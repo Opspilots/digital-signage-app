@@ -1,11 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { playlistApi } from '../api/client'
 import type { Playlist } from '../api/types'
-import { logout } from '../auth'
 
 export default function Home() {
-  const navigate = useNavigate()
   const [playlists, setPlaylists] = useState<Playlist[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -47,121 +45,118 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Digital Signage</h1>
-        <div className="flex items-center gap-4">
-          <Link
-            to="/media"
-            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-          >
-            Media Library
-          </Link>
-          <Link
-            to="/screens"
-            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-          >
-            Screens
-          </Link>
-          <button
-            onClick={() => { logout(); navigate('/login') }}
-            className="text-sm text-gray-500 hover:text-gray-700"
-          >
-            Sign out
-          </button>
+    <div className="p-6 max-w-5xl mx-auto">
+      {/* Page top bar */}
+      <div className="flex items-center justify-between mb-8">
+        <h1 className="text-2xl font-bold text-gray-100">Dashboard</h1>
+        <button
+          onClick={() => setCreating(true)}
+          className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
+        >
+          + New Playlist
+        </button>
+      </div>
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 shadow-lg">
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Playlists</p>
+          <p className="text-3xl font-bold text-gray-100 mt-1">{playlists.length}</p>
         </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-xl font-semibold text-gray-800">Playlists</h2>
-          <button
-            onClick={() => setCreating(true)}
-            className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
-          >
-            + New Playlist
-          </button>
+        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 shadow-lg">
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Media</p>
+          <p className="text-3xl font-bold text-gray-100 mt-1">—</p>
         </div>
+        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 shadow-lg">
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Screens</p>
+          <p className="text-3xl font-bold text-gray-100 mt-1">—</p>
+        </div>
+        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-5 shadow-lg">
+          <p className="text-xs font-medium text-gray-400 uppercase tracking-wide">Schedules</p>
+          <p className="text-3xl font-bold text-gray-100 mt-1">—</p>
+        </div>
+      </div>
 
-        {creating && (
-          <form
-            onSubmit={handleCreate}
-            className="bg-white border border-gray-200 rounded-lg p-4 mb-4 flex gap-3"
+      {/* Create form */}
+      {creating && (
+        <form
+          onSubmit={handleCreate}
+          className="bg-gray-800 ring-1 ring-gray-700 rounded-xl p-4 mb-4 flex gap-3"
+        >
+          <input
+            autoFocus
+            type="text"
+            placeholder="Playlist title"
+            value={newTitle}
+            onChange={(e) => setNewTitle(e.target.value)}
+            className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-sm"
+          />
+          <button
+            type="submit"
+            className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors"
           >
-            <input
-              autoFocus
-              type="text"
-              placeholder="Playlist title"
-              value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              className="flex-1 border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-            <button
-              type="submit"
-              className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700"
-            >
-              Create
-            </button>
-            <button
-              type="button"
-              onClick={() => setCreating(false)}
-              className="text-gray-500 px-3 py-2 rounded-md text-sm hover:bg-gray-100"
-            >
-              Cancel
-            </button>
-          </form>
-        )}
+            Create
+          </button>
+          <button
+            type="button"
+            onClick={() => setCreating(false)}
+            className="text-gray-400 hover:text-gray-200 px-3 py-2 rounded-lg text-sm transition-colors"
+          >
+            Cancel
+          </button>
+        </form>
+      )}
 
-        {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">
-            {error}
-          </div>
-        )}
+      {error && (
+        <div className="bg-red-950 border border-red-800 text-red-400 px-4 py-3 rounded-lg mb-4 text-sm">
+          {error}
+        </div>
+      )}
 
-        {loading ? (
-          <div className="text-center text-gray-500 py-12">Loading…</div>
-        ) : playlists.length === 0 ? (
-          <div className="text-center text-gray-400 py-12">
-            No playlists yet. Create one to get started.
-          </div>
-        ) : (
-          <ul className="space-y-3">
-            {playlists.map((p) => (
-              <li
-                key={p.id}
-                className="bg-white border border-gray-200 rounded-lg px-5 py-4 flex items-center justify-between hover:shadow-sm transition-shadow"
-              >
-                <div>
-                  <h3 className="font-medium text-gray-900">{p.title}</h3>
-                  {p.description && (
-                    <p className="text-sm text-gray-500 mt-0.5">{p.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-3">
-                  <Link
-                    to={`/playlists/${p.id}/edit`}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium"
-                  >
-                    Edit
-                  </Link>
-                  <Link
-                    to={`/playlists/${p.id}/play`}
-                    className="text-sm bg-green-600 text-white px-3 py-1.5 rounded-md hover:bg-green-700 font-medium"
-                  >
-                    Play
-                  </Link>
-                  <button
-                    onClick={() => handleDelete(p.id)}
-                    className="text-sm text-red-500 hover:text-red-700"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </main>
+      {/* Playlist list */}
+      {loading ? (
+        <div className="text-center text-gray-400 py-12">Loading…</div>
+      ) : playlists.length === 0 ? (
+        <div className="bg-gray-800 ring-1 ring-gray-700 rounded-xl px-5 py-12 text-center text-gray-400">
+          No playlists yet. Create one to get started.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {playlists.map((p) => (
+            <div
+              key={p.id}
+              className="bg-gray-800 ring-1 ring-gray-700 hover:ring-gray-600 rounded-xl px-5 py-4 flex items-center justify-between transition-all group"
+            >
+              <div>
+                <h3 className="text-base font-semibold text-gray-100">{p.title}</h3>
+                {p.description && (
+                  <p className="text-sm text-gray-400 mt-0.5">{p.description}</p>
+                )}
+              </div>
+              <div className="flex items-center gap-3">
+                <Link
+                  to={`/playlists/${p.id}/edit`}
+                  className="text-sm font-medium text-indigo-400 hover:text-indigo-300"
+                >
+                  Edit
+                </Link>
+                <Link
+                  to={`/playlists/${p.id}/play`}
+                  className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm px-3 py-1.5 rounded-lg font-medium transition-colors"
+                >
+                  Play
+                </Link>
+                <button
+                  onClick={() => handleDelete(p.id)}
+                  className="text-sm text-gray-500 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                >
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

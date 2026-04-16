@@ -1,8 +1,10 @@
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3001'
+const REFRESH_TOKEN_KEY = 'ds_refresh_token'
 
-// In-memory token storage (not localStorage, for security)
+// Access token: in-memory only (not persisted, XSS-safe)
+// Refresh token: localStorage (survives page reloads; cleared on logout)
 let accessToken: string | null = null
-let refreshToken: string | null = null
+let refreshToken: string | null = localStorage.getItem(REFRESH_TOKEN_KEY)
 let refreshTimer: ReturnType<typeof setTimeout> | null = null
 
 type AuthListener = () => void
@@ -55,6 +57,11 @@ function scheduleRefresh(token: string) {
 function setTokens(access: string | null, rtoken: string | null) {
   accessToken = access
   refreshToken = rtoken
+  if (rtoken) {
+    localStorage.setItem(REFRESH_TOKEN_KEY, rtoken)
+  } else {
+    localStorage.removeItem(REFRESH_TOKEN_KEY)
+  }
   if (refreshTimer) clearTimeout(refreshTimer)
   if (access) scheduleRefresh(access)
   notify()

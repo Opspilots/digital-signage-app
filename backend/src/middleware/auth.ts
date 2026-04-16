@@ -1,10 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
+import db from '../db/schema';
 
 export const JWT_SECRET = process.env.JWT_SECRET ?? 'change-me-in-production';
 export const JWT_ACCESS_TTL = '15m';
 export const JWT_REFRESH_TTL = '7d';
-export const SCREEN_TOKEN = process.env.SCREEN_TOKEN ?? '';
 
 export interface AuthPayload {
   sub: string;
@@ -20,10 +20,13 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
   const token = header.slice(7);
 
-  // Screen token accepted as a fallback for read-only player access
-  if (SCREEN_TOKEN && token === SCREEN_TOKEN) {
-    next();
-    return;
+  // Accept any registered screen token for GET (read-only player access)
+  if (req.method === 'GET') {
+    const screenRow = db.prepare('SELECT id FROM screens WHERE token = ?').get(token);
+    if (screenRow) {
+      next();
+      return;
+    }
   }
 
   try {
