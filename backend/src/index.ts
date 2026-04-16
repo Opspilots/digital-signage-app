@@ -36,6 +36,19 @@ app.use('/api/playlists', requireAuth, playlistsRouter);
 app.use('/api/screens', requireAuth, screensRouter);
 app.use('/api/screens/:screenId/schedules', requireAuth, schedulesRouter);
 
+// Serve frontend static files (SPA fallback)
+const FRONTEND_DIST = process.env.FRONTEND_DIST
+  ? path.resolve(process.env.FRONTEND_DIST)
+  : path.join(__dirname, '../../frontend/dist');
+
+import fs from 'fs';
+if (fs.existsSync(FRONTEND_DIST)) {
+  app.use(express.static(FRONTEND_DIST));
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
+  });
+}
+
 app.listen(PORT, () => {
-  console.log(`Digital Signage API running on http://localhost:${PORT}`);
+  console.log(`Digital Signage running on http://localhost:${PORT}`);
 });
