@@ -4,12 +4,14 @@ import { playlistApi, screenApi, BASE_URL } from '../api/client'
 import type { Playlist, PlaylistItem } from '../api/types'
 
 const HEARTBEAT_INTERVAL_MS = 30_000
+const HUD_TIMEOUT_MS        = 3000
 
 export default function PlaylistPlayer() {
   const { id } = useParams<{ id: string }>()
   const [searchParams] = useSearchParams()
   const screenToken = searchParams.get('screen') ?? undefined
   const navigate = useNavigate()
+  const containerRef = useRef<HTMLDivElement>(null)
   const [playlist, setPlaylist] = useState<Playlist | null>(null)
   const [currentPlaylistId, setCurrentPlaylistId] = useState<string | undefined>(id)
   const currentPlaylistIdRef = useRef(currentPlaylistId)
@@ -17,19 +19,20 @@ export default function PlaylistPlayer() {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showHud, setShowHud] = useState(false)
+  const [showHud, setShowHud] = useState(true)
   const [transitionKey, setTransitionKey] = useState(0)
+  const [muted, setMuted] = useState(true)
+  const [volume, setVolume] = useState(1)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Keep ref in sync so the heartbeat closure always reads the latest playlist id
   useEffect(() => {
     currentPlaylistIdRef.current = currentPlaylistId
   }, [currentPlaylistId])
 
-  // Load playlist by id
   useEffect(() => {
     const playlistId = currentPlaylistId
     if (!playlistId) return
@@ -45,7 +48,6 @@ export default function PlaylistPlayer() {
       .finally(() => setLoading(false))
   }, [currentPlaylistId])
 
-  // Screen heartbeat polling
   useEffect(() => {
     if (!screenToken) return
 
@@ -54,7 +56,7 @@ export default function PlaylistPlayer() {
         if (data.current_playlist_id && data.current_playlist_id !== currentPlaylistIdRef.current) {
           setCurrentPlaylistId(data.current_playlist_id)
         }
-      }).catch(() => {/* ignore heartbeat errors */})
+      }).catch(() => {})
     }
 
     sendHeartbeat()
@@ -71,7 +73,6 @@ export default function PlaylistPlayer() {
     setTransitionKey((k) => k + 1)
   }, [])
 
-  // Auto-advance timer
   useEffect(() => {
     if (items.length === 0) return
     const item = items[currentIndex]
@@ -92,23 +93,52 @@ export default function PlaylistPlayer() {
     }
   }, [currentIndex, items, goTo])
 
-  // Keyboard shortcuts — use goTo so the auto-advance timer is properly reset
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await containerRef.current?.requestFullscreen()
+      } else {
+        await document.exitFullscreen()
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', onFsChange)
+    return () => document.removeEventListener('fullscreenchange', onFsChange)
+  }, [])
+
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') navigate(-1)
+      if (e.key === 'Escape' && !document.fullscreenElement) navigate(-1)
       if (e.key === 'ArrowRight') goTo(currentIndex + 1 < items.length ? currentIndex + 1 : 0)
       if (e.key === 'ArrowLeft') goTo(currentIndex - 1 >= 0 ? currentIndex - 1 : items.length - 1)
+      if (e.key === 'f' || e.key === 'F') toggleFullscreen()
+      if (e.key === 'm' || e.key === 'M') setMuted((m) => !m)
     }
     window.addEventListener('keydown', handleKey)
     return () => window.removeEventListener('keydown', handleKey)
-  }, [items.length, navigate, currentIndex, goTo])
+  }, [items.length, navigate, currentIndex, goTo, toggleFullscreen])
 
-  // HUD on hover
-  const handleMouseMove = () => {
+  const bumpHud = useCallback(() => {
     setShowHud(true)
     if (hudTimerRef.current) clearTimeout(hudTimerRef.current)
-    hudTimerRef.current = setTimeout(() => setShowHud(false), 2000)
-  }
+    hudTimerRef.current = setTimeout(() => setShowHud(false), HUD_TIMEOUT_MS)
+  }, [])
+
+  useEffect(() => {
+    bumpHud()
+  }, [bumpHud])
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.volume = volume
+      videoRef.current.muted = muted
+    }
+  }, [volume, muted, currentIndex])
 
   if (loading) {
     return (
@@ -128,7 +158,7 @@ export default function PlaylistPlayer() {
 
   if (items.length === 0) {
     return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white gap-4">
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white gap-4 px-6 text-center">
         <p className="text-gray-400">Esta lista no tiene elementos.</p>
         <button onClick={() => navigate(-1)} className="text-blue-400 hover:text-blue-300 text-sm">
           ← Volver
@@ -169,15 +199,17 @@ export default function PlaylistPlayer() {
       ? 'transition-wipe-right-enter'
       : ''
 
-  const style =
+  const animationStyle =
     transitionType !== 'none'
       ? { animationDuration: `${transDuration}ms` }
       : {}
 
   return (
     <div
-      className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden cursor-none"
-      onMouseMove={handleMouseMove}
+      ref={containerRef}
+      className="min-h-screen bg-black flex items-center justify-center relative overflow-hidden select-none"
+      onMouseMove={bumpHud}
+      onTouchStart={bumpHud}
     >
       {isVideo ? (
         <video
@@ -185,9 +217,10 @@ export default function PlaylistPlayer() {
           ref={videoRef}
           src={currentItem.media_file ? `${BASE_URL}${currentItem.media_file.url}` : ''}
           className={`max-w-full max-h-screen object-contain ${animationClass}`}
-          style={style}
+          style={animationStyle}
           autoPlay
-          muted={false}
+          muted={muted}
+          playsInline
           onEnded={() => goTo(currentIndex + 1 < items.length ? currentIndex + 1 : 0)}
           onError={() => goTo(currentIndex + 1 < items.length ? currentIndex + 1 : 0)}
         />
@@ -197,27 +230,123 @@ export default function PlaylistPlayer() {
           src={currentItem.media_file ? `${BASE_URL}${currentItem.media_file.url}` : ''}
           alt={currentItem.media_file?.original_name ?? ''}
           className={`max-w-full max-h-screen object-contain ${animationClass}`}
-          style={style}
+          style={animationStyle}
         />
       )}
 
-      {/* HUD overlay */}
+      {/* HUD */}
       <div
         className={`absolute inset-0 pointer-events-none transition-opacity duration-300 ${
           showHud ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        <div className="absolute top-0 left-0 right-0 bg-gradient-to-b from-black/60 to-transparent p-4">
-          <p className="text-white font-semibold text-lg">{playlist.title}</p>
-          <p className="text-gray-300 text-sm mt-0.5">
-            {currentItem.media_file?.original_name}
-          </p>
+        {/* Top bar */}
+        <div className="absolute top-0 left-0 right-0 flex items-start justify-between gap-3 p-3 sm:p-4"
+          style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.75) 0%, transparent 100%)' }}
+        >
+          <button
+            onClick={() => navigate(-1)}
+            className="pointer-events-auto flex items-center gap-1.5 text-white text-sm px-3 py-2 rounded-lg backdrop-blur"
+            style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)' }}
+            title="Volver (Esc)"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="15 18 9 12 15 6"/>
+            </svg>
+            <span className="hidden sm:inline">Volver</span>
+          </button>
+          <div className="min-w-0 text-right">
+            <p className="text-white font-semibold text-base sm:text-lg truncate">{playlist.title}</p>
+            <p className="text-gray-300 text-xs sm:text-sm mt-0.5 truncate">
+              {currentItem.media_file?.original_name}
+            </p>
+          </div>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-4 flex items-center justify-between">
-          <span className="text-white text-sm">
-            {currentIndex + 1} / {items.length}
-          </span>
-          <span className="text-gray-300 text-xs">ESC para salir · ← → para navegar</span>
+
+        {/* Bottom bar */}
+        <div
+          className="absolute bottom-0 left-0 right-0 flex items-center justify-between gap-3 p-3 sm:p-4"
+          style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.75) 0%, transparent 100%)' }}
+        >
+          <div className="flex items-center gap-2 pointer-events-auto">
+            <button
+              onClick={() => goTo(currentIndex - 1 >= 0 ? currentIndex - 1 : items.length - 1)}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white"
+              style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)' }}
+              title="Anterior (←)"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="11 17 6 12 11 7"/><polyline points="18 17 13 12 18 7"/>
+              </svg>
+            </button>
+            <button
+              onClick={() => goTo(currentIndex + 1 < items.length ? currentIndex + 1 : 0)}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white"
+              style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)' }}
+              title="Siguiente (→)"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="13 17 18 12 13 7"/><polyline points="6 17 11 12 6 7"/>
+              </svg>
+            </button>
+            <span className="text-white text-sm font-mono px-2">
+              {currentIndex + 1} / {items.length}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 pointer-events-auto">
+            {isVideo && (
+              <>
+                <button
+                  onClick={() => setMuted((m) => !m)}
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white"
+                  style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)' }}
+                  title={muted ? 'Activar sonido (M)' : 'Silenciar (M)'}
+                >
+                  {muted ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                    </svg>
+                  )}
+                </button>
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  value={muted ? 0 : volume}
+                  onChange={(e) => {
+                    const v = Number(e.target.value)
+                    setVolume(v)
+                    setMuted(v === 0)
+                  }}
+                  className="hidden sm:block"
+                  style={{ width: 80, accentColor: 'var(--cyan)' }}
+                  title="Volumen"
+                />
+              </>
+            )}
+            <button
+              onClick={toggleFullscreen}
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white"
+              style={{ background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)' }}
+              title={isFullscreen ? 'Salir pantalla completa (F)' : 'Pantalla completa (F)'}
+            >
+              {isFullscreen ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>

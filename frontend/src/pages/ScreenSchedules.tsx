@@ -63,7 +63,7 @@ export default function ScreenSchedules() {
   if (loading) return <div className="p-8 text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
 
   return (
-    <div className="p-8 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
       {/* Header */}
       <div className="flex items-center gap-3 mb-8">
         <Link to="/screens" className="text-sm transition-colors" style={{ color: 'var(--text2)' }}

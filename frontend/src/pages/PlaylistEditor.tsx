@@ -229,9 +229,9 @@ export default function PlaylistEditor() {
   if (!playlist) return <div className="p-8 text-sm" style={{ color: 'var(--red)' }}>{error ?? 'No encontrada'}</div>
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex items-start justify-between gap-3 mb-6 flex-wrap">
         <div>
           <p className="text-xs font-500 uppercase tracking-widest mb-1" style={{ color: 'var(--text2)', letterSpacing: '0.08em' }}>
             Editando lista

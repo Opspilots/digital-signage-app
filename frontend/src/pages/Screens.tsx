@@ -1,8 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { QRCodeSVG } from 'qrcode.react'
 import { screenApi, playlistApi } from '../api/client'
 import type { Screen, Playlist } from '../api/types'
 import { useBluetooth, type DiscoveredDevice } from '../hooks/useBluetooth'
+
+interface Toast { id: number; kind: 'warn' | 'info'; message: string }
 
 function formatLastSeen(lastSeenAt: string | null | undefined): string {
   if (!lastSeenAt) return 'Nunca'
@@ -23,6 +26,16 @@ export default function Screens() {
   const [newName,    setNewName]    = useState('')
   const [newLocation,setNewLocation]= useState('')
   const [copiedId,   setCopiedId]   = useState<string | null>(null)
+  const [qrScreen,   setQrScreen]   = useState<Screen | null>(null)
+  const [toasts,     setToasts]     = useState<Toast[]>([])
+  const prevOnline = useRef<Map<string, boolean>>(new Map())
+  const firstLoad  = useRef(true)
+
+  const pushToast = (t: Omit<Toast, 'id'>) => {
+    const id = Date.now() + Math.random()
+    setToasts((prev) => [...prev, { ...t, id }])
+    setTimeout(() => setToasts((prev) => prev.filter((x) => x.id !== id)), 6000)
+  }
 
   const { isSupported: btSupported, isScanning, devices: btDevices, error: btError, scanForDevices, clearDevices, refreshPaired } = useBluetooth()
   const [showBtModal,       setShowBtModal]       = useState(false)
@@ -31,7 +44,20 @@ export default function Screens() {
 
   const load = () => {
     Promise.all([screenApi.list(), playlistApi.list()])
-      .then(([s, p]) => { setScreens(s); setPlaylists(p) })
+      .then(([s, p]) => {
+        if (!firstLoad.current) {
+          s.forEach((screen) => {
+            const wasOnline = prevOnline.current.get(screen.id)
+            if (wasOnline === true && !screen.online) {
+              pushToast({ kind: 'warn', message: `"${screen.name}" se ha desconectado` })
+            }
+          })
+        }
+        prevOnline.current = new Map(s.map((sc) => [sc.id, !!sc.online]))
+        firstLoad.current = false
+        setScreens(s)
+        setPlaylists(p)
+      })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }
@@ -99,20 +125,34 @@ export default function Screens() {
   }
 
   return (
-    <div className="p-8 max-w-4xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
+      {/* Toasts */}
+      <div className="fixed top-4 right-4 z-50 flex flex-col gap-2" style={{ maxWidth: 'calc(100vw - 2rem)' }}>
+        {toasts.map((t) => (
+          <div key={t.id} className="animate-slide-up rounded-lg px-4 py-3 text-sm shadow-lg"
+            style={t.kind === 'warn'
+              ? { background: 'var(--amber-muted)', border: '1px solid rgba(245,158,11,0.3)', color: 'var(--amber)' }
+              : { background: 'var(--cyan-muted)', border: '1px solid var(--cyan-dim)', color: 'var(--cyan)' }
+            }
+          >
+            {t.kind === 'warn' ? '⚠ ' : '· '}{t.message}
+          </div>
+        ))}
+      </div>
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex items-start justify-between gap-3 mb-6 sm:mb-8 flex-wrap">
         <div>
           <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>Pantallas</h1>
           <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>
             {screens.filter(s => s.online).length} de {screens.length} en línea
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {btSupported && (
             <button
               onClick={handleOpenBt}
-              className="flex items-center gap-2 text-sm px-4 py-2 rounded-lg font-500 transition-colors"
+              className="flex items-center gap-2 text-sm px-3 sm:px-4 py-2 rounded-lg font-500 transition-colors"
               style={{ color: 'var(--text2)', background: 'var(--surface2)', border: '1px solid var(--border)' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--text1)')}
               onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
@@ -129,7 +169,7 @@ export default function Screens() {
 
       {creating && (
         <form onSubmit={handleCreate} className="ds-card p-4 mb-4 animate-slide-up">
-          <div className="flex gap-3 mb-3">
+          <div className="flex flex-col sm:flex-row gap-3 mb-3">
             <input autoFocus type="text" placeholder="Nombre de la pantalla (p. ej. TV Recepción)" value={newName}
               onChange={(e) => setNewName(e.target.value)} className="ds-input" />
             <input type="text" placeholder="Ubicación (opcional)" value={newLocation}
@@ -238,6 +278,18 @@ export default function Screens() {
                       >
                         {copiedId === `url-${screen.id}` ? '✓ Copiada' : 'Copiar URL'}
                       </button>
+                      <button onClick={() => setQrScreen(screen)}
+                        className="text-xs px-2.5 py-1.5 rounded-lg transition-colors flex items-center gap-1.5"
+                        style={{ color: 'var(--text2)', background: 'var(--surface2)', border: '1px solid var(--border)' }}
+                        title="Mostrar código QR"
+                      >
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="3" width="5" height="5"/><rect x="16" y="3" width="5" height="5"/><rect x="3" y="16" width="5" height="5"/>
+                          <path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/>
+                          <path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/>
+                        </svg>
+                        QR
+                      </button>
                     </>
                   ) : (
                     <span className="text-xs italic" style={{ color: 'var(--text3)' }}>Asigna una lista para poder abrir</span>
@@ -329,6 +381,43 @@ export default function Screens() {
           </div>
         </div>
       )}
+
+      {/* QR Modal */}
+      {qrScreen && (() => {
+        const url = getPlayerUrl(qrScreen)
+        if (!url) return null
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }} onClick={() => setQrScreen(null)}>
+            <div className="ds-card w-full max-w-sm animate-slide-up" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: '1px solid var(--border)' }}>
+                <h3 className="font-display font-600" style={{ color: 'var(--text1)' }}>QR del reproductor</h3>
+                <button onClick={() => setQrScreen(null)} style={{ color: 'var(--text2)' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--text1)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'var(--text2)')}
+                  aria-label="Cerrar"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
+              <div className="p-6 flex flex-col items-center gap-4">
+                <p className="text-sm text-center" style={{ color: 'var(--text2)' }}>
+                  Escanea con el móvil o la pantalla para abrir <span style={{ color: 'var(--text1)' }}>{qrScreen.name}</span>.
+                </p>
+                <div style={{ padding: 16, background: '#fff', borderRadius: 12 }}>
+                  <QRCodeSVG value={url} size={220} level="M" />
+                </div>
+                <div className="w-full">
+                  <p className="text-xs font-500 uppercase tracking-widest mb-1" style={{ color: 'var(--text3)' }}>URL</p>
+                  <p className="text-xs font-mono break-all" style={{ color: 'var(--text2)' }}>{url}</p>
+                </div>
+                <button onClick={() => handleCopy(url, `qr-${qrScreen.id}`)} className="ds-btn w-full">
+                  {copiedId === `qr-${qrScreen.id}` ? '✓ Copiada' : 'Copiar URL'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

@@ -14,8 +14,13 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
   const [error,     setError]     = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [dragOver,  setDragOver]  = useState(false)
+  const [search,    setSearch]    = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const BASE_URL = import.meta.env.VITE_API_URL ?? ''
+
+  const filteredFiles = search.trim()
+    ? files.filter((f) => f.original_name.toLowerCase().includes(search.trim().toLowerCase()))
+    : files
 
   const load = useCallback(() => {
     setLoading(true)
@@ -64,9 +69,9 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
   }
 
   return (
-    <div className={selectionMode ? '' : 'p-8 max-w-6xl mx-auto'}>
+    <div className={selectionMode ? '' : 'p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto'}>
       {!selectionMode && (
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between gap-3 mb-6 sm:mb-8 flex-wrap">
           <div>
             <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>
               Biblioteca multimedia
@@ -83,6 +88,27 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
         <p className="text-xs font-500 px-4 pt-4 mb-3 uppercase tracking-widest" style={{ color: 'var(--cyan)', letterSpacing: '0.08em' }}>
           Pulsa para añadir a la lista
         </p>
+      )}
+
+      {/* Search */}
+      {files.length > 0 && (
+        <div className={`mb-4 relative ${selectionMode ? 'mx-4' : ''}`}>
+          <svg
+            width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ color: 'var(--text2)' }}
+          >
+            <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+          </svg>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Buscar archivos…"
+            className="ds-input"
+            style={{ paddingLeft: 36 }}
+          />
+        </div>
       )}
 
       {/* Drop zone */}
@@ -121,9 +147,11 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
         <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
       ) : files.length === 0 ? (
         <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>Aún no hay archivos.</div>
+      ) : filteredFiles.length === 0 ? (
+        <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>Sin resultados para "{search}".</div>
       ) : (
         <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 ${selectionMode ? 'px-4 pb-4' : ''}`}>
-          {files.map((file) => {
+          {filteredFiles.map((file) => {
             const selected = selectedIds?.has(file.id)
             return (
               <div
