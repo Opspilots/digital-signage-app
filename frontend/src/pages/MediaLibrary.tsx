@@ -64,7 +64,6 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
     }
   }
 
-  const isVideo = (f: MediaFile) => f.mime_type.startsWith('video/')
   const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
   return (

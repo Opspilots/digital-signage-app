@@ -40,8 +40,6 @@ function SortableItem({
     opacity: isDragging ? 0.5 : 1,
   }
 
-  const isVideo = item.media_file?.mime_type.startsWith('video/')
-
   return (
     <div
       ref={setNodeRef}
