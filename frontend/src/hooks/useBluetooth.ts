@@ -34,10 +34,13 @@ export function useBluetooth(): UseBluetoothReturn {
 
     try {
       // First try to find devices advertising our custom signage service
-      let device: BluetoothDevice | null = null
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const bt = (navigator as any).bluetooth
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let device: any = null
 
       try {
-        device = await navigator.bluetooth.requestDevice({
+        device = await bt.requestDevice({
           filters: [{ services: [SIGNAGE_SERVICE_UUID] }],
         })
       } catch (filteredErr) {
@@ -47,7 +50,7 @@ export function useBluetooth(): UseBluetoothReturn {
           filteredErr instanceof DOMException &&
           filteredErr.name === 'NotFoundError'
         ) {
-          device = await navigator.bluetooth.requestDevice({
+          device = await bt.requestDevice({
             acceptAllDevices: true,
           })
         } else {

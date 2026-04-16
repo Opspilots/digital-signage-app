@@ -9,7 +9,20 @@ export interface MediaFile {
   created_at: string
 }
 
-export type TransitionType = 'none' | 'fade' | 'slide'
+export type TransitionType =
+  | 'none'
+  | 'fade'
+  | 'slide'
+  | 'zoom-in'
+  | 'zoom-out'
+  | 'slide-left'
+  | 'slide-up'
+  | 'slide-down'
+  | 'blur-in'
+  | 'flip'
+  | 'rotate-in'
+  | 'bounce-in'
+  | 'wipe-right'
 
 export interface PlaylistItem {
   id: string
