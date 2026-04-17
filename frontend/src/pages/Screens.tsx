@@ -5,6 +5,7 @@ import { screenApi, playlistApi } from '../api/client'
 import type { Screen, Playlist } from '../api/types'
 import { useBluetooth, type DiscoveredDevice } from '../hooks/useBluetooth'
 import { useToast } from '../toast'
+import ConfirmModal from '../components/ConfirmModal'
 
 function formatLastSeen(lastSeenAt: string | null | undefined): string {
   if (!lastSeenAt) return 'Nunca'
@@ -43,6 +44,9 @@ export default function Screens() {
   const [showBtModal,       setShowBtModal]       = useState(false)
   const [registeringDevice, setRegisteringDevice] = useState<string | null>(null)
   const [registeredDevices, setRegisteredDevices] = useState<Set<string>>(new Set())
+
+  const [confirmOpen,   setConfirmOpen]   = useState(false)
+  const [confirmTarget, setConfirmTarget] = useState<{ id: string; type: 'delete' | 'unpair' } | null>(null)
 
   const load = () => {
     Promise.all([screenApi.list(), playlistApi.list()])
@@ -93,9 +97,12 @@ export default function Screens() {
     } catch (e) { setError(String(e)) }
   }
 
-  const handleDelete = async (id: string) => {
-    const s = screens.find((x) => x.id === id)
-    if (!confirm(`¿Eliminar "${s?.name ?? 'esta pantalla'}"?`)) return
+  const handleDelete = (id: string) => {
+    setConfirmTarget({ id, type: 'delete' })
+    setConfirmOpen(true)
+  }
+
+  const executeDelete = async (id: string) => {
     try {
       await screenApi.delete(id)
       setScreens((prev) => prev.filter((s) => s.id !== id))
@@ -127,14 +134,31 @@ export default function Screens() {
     } catch (e) { setError(String(e)) }
   }
 
-  const handleUnpair = async (id: string) => {
-    const s = screens.find((x) => x.id === id)
-    if (!confirm(`Desenlazar "${s?.name ?? 'esta pantalla'}"? La pantalla pedirá un nuevo código.`)) return
+  const handleUnpair = (id: string) => {
+    setConfirmTarget({ id, type: 'unpair' })
+    setConfirmOpen(true)
+  }
+
+  const executeUnpair = async (id: string) => {
     try {
       await screenApi.unpair(id)
       setScreens((prev) => prev.filter((s) => s.id !== id))
       toast.success('Pantalla desenlazada. Mostrará un nuevo código.')
     } catch (e) { setError(String(e)) }
+  }
+
+  const handleConfirm = () => {
+    if (!confirmTarget) return
+    const { id, type } = confirmTarget
+    setConfirmOpen(false)
+    setConfirmTarget(null)
+    if (type === 'delete') executeDelete(id)
+    else executeUnpair(id)
+  }
+
+  const handleCancelConfirm = () => {
+    setConfirmOpen(false)
+    setConfirmTarget(null)
   }
 
   const getPlayerUrl = (screen: Screen) =>
@@ -281,7 +305,20 @@ export default function Screens() {
         ? screens.filter((s) => s.name.toLowerCase().includes(q) || (s.location ?? '').toLowerCase().includes(q))
         : screens
       ; return loading ? (
-        <div className="py-12 text-center text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
+        <div className="space-y-3 animate-pulse">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="rounded-xl p-5" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-2.5 h-2.5 rounded-full bg-gray-200 dark:bg-gray-700 flex-shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-4 rounded bg-gray-200 dark:bg-gray-700 w-1/3" />
+                  <div className="h-3 rounded bg-gray-200 dark:bg-gray-700 w-1/4" />
+                </div>
+              </div>
+              <div className="h-8 rounded-lg bg-gray-200 dark:bg-gray-700 w-full" style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }} />
+            </div>
+          ))}
+        </div>
       ) : filtered.length === 0 && search.trim() ? (
         <div className="py-12 text-center text-sm" style={{ color: 'var(--text2)' }}>Sin resultados para "{search}".</div>
       ) : (
@@ -423,6 +460,26 @@ export default function Screens() {
           })}
         </ul>
       ) })()}
+
+      {/* Confirm Modal */}
+      {(() => {
+        const target = confirmTarget ? screens.find((x) => x.id === confirmTarget.id) : null
+        const isUnpair = confirmTarget?.type === 'unpair'
+        return (
+          <ConfirmModal
+            open={confirmOpen}
+            title={isUnpair ? 'Desenlazar pantalla' : 'Eliminar pantalla'}
+            message={
+              isUnpair
+                ? `La pantalla "${target?.name ?? ''}" volverá a estado pendiente y mostrará un nuevo código de emparejamiento.`
+                : `¿Eliminar "${target?.name ?? 'esta pantalla'}"? Esta acción no se puede deshacer.`
+            }
+            confirmLabel={isUnpair ? 'Desenlazar' : 'Eliminar'}
+            onConfirm={handleConfirm}
+            onCancel={handleCancelConfirm}
+          />
+        )
+      })()}
 
       {/* Bluetooth Modal */}
       {showBtModal && (

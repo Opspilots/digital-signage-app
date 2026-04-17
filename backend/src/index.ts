@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import logger from './utils/logger';
 import mediaRouter from './routes/media';
 import playlistsRouter from './routes/playlists';
 import authRouter from './routes/auth';
@@ -55,5 +56,5 @@ if (fs.existsSync(FRONTEND_DIST)) {
 }
 
 app.listen(PORT, () => {
-  console.log(`Digital Signage running on http://localhost:${PORT}`);
+  logger.info(`Digital Signage running on http://localhost:${PORT}`);
 });

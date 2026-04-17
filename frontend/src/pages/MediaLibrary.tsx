@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { mediaApi } from '../api/client'
 import type { MediaFile } from '../api/types'
 import { useToast } from '../toast'
+import ConfirmModal from '../components/ConfirmModal'
 
 interface Props {
   selectionMode?: boolean
@@ -11,24 +12,46 @@ interface Props {
 
 export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: Props) {
   const [files,     setFiles]     = useState<MediaFile[]>([])
+  const [total,     setTotal]     = useState(0)
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [dragOver,  setDragOver]  = useState(false)
   const [search,    setSearch]    = useState('')
+  const [typeFilter, setTypeFilter] = useState('')
+  const [minSize,   setMinSize]   = useState('')
+  const [maxSize,   setMaxSize]   = useState('')
   const [multiSel,  setMultiSel]  = useState<Set<string>>(new Set())
+  const [confirmOpen,      setConfirmOpen]      = useState(false)
+  const [confirmSingleId,  setConfirmSingleId]  = useState<string | null>(null)
+  const [confirmBulkPending, setConfirmBulkPending] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const BASE_URL = import.meta.env.VITE_API_URL ?? ''
   const toast = useToast()
 
-  const filteredFiles = search.trim()
-    ? files.filter((f) => f.original_name.toLowerCase().includes(search.trim().toLowerCase()))
-    : files
+  const hasFilters = !!(search.trim() || typeFilter || minSize || maxSize)
+
+  const clearFilters = () => {
+    setSearch('')
+    setTypeFilter('')
+    setMinSize('')
+    setMaxSize('')
+  }
+
+  const filteredFiles = files
 
   const load = useCallback(() => {
     setLoading(true)
-    mediaApi.list().then((r) => setFiles(r.items)).catch((e) => setError(String(e))).finally(() => setLoading(false))
-  }, [])
+    const params: Parameters<typeof mediaApi.list>[0] = { limit: 200, offset: 0 }
+    if (search.trim())  params.search  = search.trim()
+    if (typeFilter)     params.type    = typeFilter
+    if (minSize !== '') params.minSize = Number(minSize)
+    if (maxSize !== '') params.maxSize = Number(maxSize)
+    mediaApi.list(params)
+      .then((r) => { setFiles(r.items); setTotal(r.total) })
+      .catch((e) => setError(String(e)))
+      .finally(() => setLoading(false))
+  }, [search, typeFilter, minSize, maxSize])
 
   useEffect(() => { load() }, [load])
 
@@ -50,9 +73,15 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
     })
   }
 
-  const handleBulkDelete = async () => {
+  const handleBulkDelete = () => {
     if (multiSel.size === 0) return
-    if (!confirm(`¿Eliminar ${multiSel.size} archivo${multiSel.size !== 1 ? 's' : ''}?`)) return
+    setConfirmBulkPending(true)
+    setConfirmOpen(true)
+  }
+
+  const executeBulkDelete = async () => {
+    setConfirmOpen(false)
+    setConfirmBulkPending(false)
     const ids = Array.from(multiSel)
     try {
       await Promise.all(ids.map((id) => mediaApi.delete(id)))
@@ -77,13 +106,32 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
     if (dropped.length) uploadFiles(dropped)
   }
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('¿Eliminar este archivo?')) return
+  const handleDelete = (id: string) => {
+    setConfirmSingleId(id)
+    setConfirmOpen(true)
+  }
+
+  const executeDelete = async () => {
+    setConfirmOpen(false)
+    if (!confirmSingleId) return
+    const id = confirmSingleId
+    setConfirmSingleId(null)
     try {
       await mediaApi.delete(id)
       setFiles((prev) => prev.filter((f) => f.id !== id))
       if (!selectionMode) toast.success('Archivo eliminado')
     } catch (e) { setError(String(e)) }
+  }
+
+  const handleConfirm = () => {
+    if (confirmBulkPending) executeBulkDelete()
+    else executeDelete()
+  }
+
+  const handleCancelConfirm = () => {
+    setConfirmOpen(false)
+    setConfirmSingleId(null)
+    setConfirmBulkPending(false)
   }
 
   const isVideo = (f: MediaFile) => f.mime_type.startsWith('video/')
@@ -101,7 +149,7 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
             <h1 className="font-display font-700 text-2xl" style={{ color: 'var(--text1)', letterSpacing: '-0.01em' }}>
               Biblioteca multimedia
             </h1>
-            <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{files.length} archivo{files.length !== 1 ? 's' : ''}</p>
+            <p className="text-sm mt-0.5" style={{ color: 'var(--text2)' }}>{total} archivo{total !== 1 ? 's' : ''}</p>
           </div>
           <div className="flex gap-2 flex-wrap">
             {multiSel.size > 0 && (
@@ -132,9 +180,10 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
         </p>
       )}
 
-      {/* Search */}
-      {files.length > 0 && (
-        <div className={`mb-4 relative ${selectionMode ? 'mx-4' : ''}`}>
+      {/* Search and filters */}
+      <div className={`mb-4 flex flex-col gap-2 ${selectionMode ? 'mx-4' : ''}`}>
+        {/* Search input */}
+        <div className="relative">
           <svg
             width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
             className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -151,7 +200,50 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
             style={{ paddingLeft: 36 }}
           />
         </div>
-      )}
+        {/* Type + size filters */}
+        {!selectionMode && (
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="ds-input text-sm"
+              style={{ width: 'auto', minWidth: 120 }}
+            >
+              <option value="">Todos los tipos</option>
+              <option value="image">Imágenes</option>
+              <option value="video">Videos</option>
+              <option value="audio">Audio</option>
+            </select>
+            <input
+              type="number"
+              value={minSize}
+              onChange={(e) => setMinSize(e.target.value)}
+              placeholder="Min. bytes"
+              className="ds-input text-sm"
+              style={{ width: 110 }}
+              min={0}
+            />
+            <input
+              type="number"
+              value={maxSize}
+              onChange={(e) => setMaxSize(e.target.value)}
+              placeholder="Max. bytes"
+              className="ds-input text-sm"
+              style={{ width: 110 }}
+              min={0}
+            />
+            {hasFilters && (
+              <button
+                onClick={clearFilters}
+                className="text-sm px-3 py-2 rounded-lg font-500 transition-colors"
+                style={{ color: 'var(--text2)', background: 'var(--surface2)', border: '1px solid var(--border)' }}
+              >
+                Limpiar filtros
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Drop zone */}
       <div
@@ -186,11 +278,22 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
       )}
 
       {loading ? (
-        <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
-      ) : files.length === 0 ? (
+        <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 animate-pulse ${selectionMode ? 'px-4 pb-4' : ''}`}>
+          {[...Array(10)].map((_, i) => (
+            <div key={i} className="rounded-xl overflow-hidden" style={{ border: '1px solid var(--border)', background: 'var(--surface)' }}>
+              <div className="aspect-video bg-gray-200 dark:bg-gray-700" />
+              <div className="px-2.5 py-2" style={{ borderTop: '1px solid var(--border)' }}>
+                <div className="h-3 rounded bg-gray-200 dark:bg-gray-700 w-3/4" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : files.length === 0 && !hasFilters ? (
         <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>Aún no hay archivos.</div>
       ) : filteredFiles.length === 0 ? (
-        <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>Sin resultados para "{search}".</div>
+        <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>
+          Sin resultados{search ? ` para "${search}"` : ''}{hasFilters ? ' con los filtros aplicados' : ''}.
+        </div>
       ) : (
         <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 ${selectionMode ? 'px-4 pb-4' : ''}`}>
           {filteredFiles.map((file) => {
@@ -271,6 +374,18 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
           })}
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmOpen}
+        title={confirmBulkPending ? 'Eliminar archivos' : 'Eliminar archivo'}
+        message={
+          confirmBulkPending
+            ? `¿Eliminar ${multiSel.size} archivo${multiSel.size !== 1 ? 's' : ''}? Esta acción no se puede deshacer.`
+            : '¿Eliminar este archivo? Esta acción no se puede deshacer.'
+        }
+        onConfirm={handleConfirm}
+        onCancel={handleCancelConfirm}
+      />
     </div>
   )
 }

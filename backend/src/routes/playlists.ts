@@ -18,11 +18,12 @@ function formatItem(row: Record<string, unknown>) {
   };
 }
 
-function getItems(playlistId: string) {
+function getItems(playlistId: string, includeUnresolved = false) {
+  const join = includeUnresolved ? 'LEFT JOIN' : 'JOIN';
   const rows = db.prepare(`
     SELECT pi.*, mf.filename, mf.original_name, mf.mime_type, mf.size_bytes, mf.duration_seconds
     FROM playlist_items pi
-    JOIN media_files mf ON mf.id = pi.media_file_id
+    ${join} media_files mf ON mf.id = pi.media_file_id
     WHERE pi.playlist_id = ?
     ORDER BY pi.position ASC
   `).all(playlistId) as Array<Record<string, unknown>>;
@@ -114,6 +115,116 @@ function updatePlaylist(req: Request, res: Response) {
 
 router.patch('/:id', updatePlaylist);
 router.put('/:id', updatePlaylist);
+
+// GET /api/playlists/:id/export — export playlist as portable JSON (uses filenames, not IDs)
+router.get('/:id/export', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND deleted_at IS NULL').get(id) as
+    | { id: string; title: string; description: string | null }
+    | undefined;
+
+  if (!playlist) {
+    res.status(404).json({ error: 'Playlist not found' });
+    return;
+  }
+
+  const items = db.prepare(`
+    SELECT pi.display_duration, pi.transition_type, pi.transition_duration,
+           pi.days_of_week, pi.start_time, pi.end_time, pi.position,
+           mf.filename AS media_filename, mf.original_name, mf.mime_type
+    FROM playlist_items pi
+    JOIN media_files mf ON mf.id = pi.media_file_id
+    WHERE pi.playlist_id = ?
+    ORDER BY pi.position ASC
+  `).all(id) as Array<Record<string, unknown>>;
+
+  res.json({
+    version: 1,
+    exported_at: new Date().toISOString(),
+    playlist: {
+      name: playlist.title,
+      description: playlist.description,
+      items: items.map(({ position: _pos, ...rest }) => rest),
+    },
+  });
+});
+
+// POST /api/playlists/import — create a new playlist from an exported JSON
+router.post('/import', (req: Request, res: Response) => {
+  const body = req.body as {
+    version?: number;
+    playlist?: {
+      name?: string;
+      description?: string;
+      items?: Array<{
+        media_filename?: string;
+        original_name?: string;
+        display_duration?: number;
+        transition_type?: string;
+        transition_duration?: number;
+        days_of_week?: number;
+        start_time?: string | null;
+        end_time?: string | null;
+      }>;
+    };
+  };
+
+  if (!body?.playlist?.name) {
+    res.status(400).json({ error: 'Invalid export format: missing playlist.name' });
+    return;
+  }
+
+  const { name, description, items = [] } = body.playlist;
+  const warnings: string[] = [];
+
+  const newId = uuidv4();
+  const now = new Date().toISOString();
+  const importedTitle = `${name} (importada)`;
+
+  const doImport = db.transaction(() => {
+    db.prepare(`
+      INSERT INTO playlists (id, title, description, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(newId, importedTitle, description ?? null, now, now);
+
+    const insert = db.prepare(`
+      INSERT INTO playlist_items (id, playlist_id, media_file_id, position, display_duration, transition_type, transition_duration, days_of_week, start_time, end_time)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const filename = item.media_filename;
+      let mediaFileId: string | null = null;
+
+      if (filename) {
+        const found = db.prepare('SELECT id FROM media_files WHERE filename = ? AND deleted_at IS NULL').get(filename) as { id: string } | undefined;
+        if (found) {
+          mediaFileId = found.id;
+        } else {
+          warnings.push(`Archivo no encontrado: "${filename}" (ítem #${i + 1})`);
+        }
+      } else {
+        warnings.push(`Ítem #${i + 1} no tiene media_filename`);
+      }
+
+      insert.run(
+        uuidv4(), newId, mediaFileId, i,
+        item.display_duration ?? 5,
+        item.transition_type ?? 'none',
+        item.transition_duration ?? 500,
+        item.days_of_week ?? 0,
+        item.start_time ?? null,
+        item.end_time ?? null,
+      );
+    }
+  });
+
+  doImport();
+
+  const created = db.prepare('SELECT * FROM playlists WHERE id = ?').get(newId);
+  res.status(201).json({ playlist: { ...created as object, items: getItems(newId, true) }, warnings });
+});
 
 // POST /api/playlists/:id/duplicate — clone playlist and all its items
 router.post('/:id/duplicate', (req: Request, res: Response) => {

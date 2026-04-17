@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { playlistApi, mediaApi, screenApi } from '../api/client'
 import type { Playlist, Screen } from '../api/types'
 import { useToast } from '../toast'
+import ConfirmModal from '../components/ConfirmModal'
 
 function StatCard({ label, value, accent }: { label: string; value: string | number; accent?: boolean }) {
   return (
@@ -26,6 +27,8 @@ export default function Home() {
   const [creating,    setCreating]    = useState(false)
   const [newTitle,    setNewTitle]    = useState('')
   const [search,      setSearch]      = useState('')
+  const [confirmOpen,   setConfirmOpen]   = useState(false)
+  const [confirmId,     setConfirmId]     = useState<string | null>(null)
   const toast = useToast()
 
   const load = () => {
@@ -50,9 +53,16 @@ export default function Home() {
     } catch (e) { setError(String(e)) }
   }
 
-  const handleDelete = async (id: string) => {
-    const p = playlists.find((x) => x.id === id)
-    if (!confirm(`¿Eliminar "${p?.title ?? 'esta lista'}"?`)) return
+  const handleDelete = (id: string) => {
+    setConfirmId(id)
+    setConfirmOpen(true)
+  }
+
+  const executeDelete = async () => {
+    setConfirmOpen(false)
+    if (!confirmId) return
+    const id = confirmId
+    setConfirmId(null)
     try {
       await playlistApi.delete(id)
       setPlaylists((prev) => prev.filter((p) => p.id !== id))
@@ -89,12 +99,23 @@ export default function Home() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <StatCard label="Listas" value={playlists.length} />
-        <StatCard label="Archivos multimedia" value={mediaCount ?? '—'} />
-        <StatCard label="Pantallas" value={screens.length} />
-        <StatCard label="En línea" value={onlineCount} accent={onlineCount > 0} />
-      </div>
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8 animate-pulse">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="ds-card p-5">
+              <div className="h-3 rounded bg-gray-200 dark:bg-gray-700 w-2/3 mb-4" />
+              <div className="h-9 rounded bg-gray-200 dark:bg-gray-700 w-1/2" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+          <StatCard label="Listas" value={playlists.length} />
+          <StatCard label="Archivos multimedia" value={mediaCount ?? '—'} />
+          <StatCard label="Pantallas" value={screens.length} />
+          <StatCard label="En línea" value={onlineCount} accent={onlineCount > 0} />
+        </div>
+      )}
 
       {/* Create form */}
       {creating && (
@@ -161,7 +182,20 @@ export default function Home() {
         ? playlists.filter((p) => p.title.toLowerCase().includes(q) || (p.description ?? '').toLowerCase().includes(q))
         : playlists
       ; return loading ? (
-        <div className="py-12 text-center text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
+        <div className="space-y-2 animate-pulse">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="ds-card px-5 py-4 flex items-center justify-between">
+              <div className="flex-1 space-y-2">
+                <div className="h-4 rounded bg-gray-200 dark:bg-gray-700 w-1/3" />
+              </div>
+              <div className="flex gap-2 ml-4">
+                <div className="h-7 w-14 rounded-lg bg-gray-200 dark:bg-gray-700" />
+                <div className="h-7 w-20 rounded-lg bg-gray-200 dark:bg-gray-700" />
+                <div className="h-7 w-14 rounded-lg bg-gray-200 dark:bg-gray-700" />
+              </div>
+            </div>
+          ))}
+        </div>
       ) : playlists.length === 0 ? (
         <div className="ds-card px-6 py-14 text-center animate-fade-in">
           <p className="text-3xl mb-3">🎬</p>
@@ -225,6 +259,14 @@ export default function Home() {
           ))}
         </div>
       ) })()}
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Eliminar lista"
+        message={`¿Eliminar "${playlists.find((p) => p.id === confirmId)?.title ?? 'esta lista'}"? Esta acción no se puede deshacer.`}
+        onConfirm={executeDelete}
+        onCancel={() => { setConfirmOpen(false); setConfirmId(null) }}
+      />
     </div>
   )
 }

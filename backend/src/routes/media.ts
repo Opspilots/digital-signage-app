@@ -7,6 +7,7 @@ import ffmpeg from 'fluent-ffmpeg';
 import ffmpegStatic from 'ffmpeg-static';
 import ffprobeInstaller from '@ffprobe-installer/ffprobe';
 import db from '../db/schema';
+import logger from '../utils/logger';
 
 // Configure fluent-ffmpeg with static binaries
 if (ffmpegStatic) {
@@ -56,7 +57,38 @@ function isVideo(mimeType: string): boolean {
   return mimeType.startsWith('video/');
 }
 
-function getVideoDuration(filePath: string): Promise<number | null> {
+function parseFps(fpsStr: string): number | null {
+  const [num, den] = fpsStr.split('/').map(Number);
+  if (isNaN(num)) return null;
+  return den ? num / den : num;
+}
+
+interface VideoMetadata {
+  duration: number | null;
+  width: number | null;
+  height: number | null;
+  fps: number | null;
+}
+
+function getVideoMetadata(filePath: string): Promise<VideoMetadata> {
+  return new Promise((resolve) => {
+    ffmpeg.ffprobe(filePath, (err, metadata) => {
+      if (err || !metadata) {
+        resolve({ duration: null, width: null, height: null, fps: null });
+        return;
+      }
+      const duration = metadata.format?.duration ?? null;
+      const videoStream = metadata.streams?.find((s) => s.codec_type === 'video');
+      const width = videoStream?.width ?? null;
+      const height = videoStream?.height ?? null;
+      const fpsStr = videoStream?.r_frame_rate;
+      const fps = fpsStr ? parseFps(fpsStr) : null;
+      resolve({ duration, width, height, fps });
+    });
+  });
+}
+
+function getAudioDuration(filePath: string): Promise<number | null> {
   return new Promise((resolve) => {
     ffmpeg.ffprobe(filePath, (err, metadata) => {
       if (err || !metadata?.format?.duration) {
@@ -84,13 +116,16 @@ function generateThumbnail(filePath: string, thumbnailFilename: string): Promise
 }
 
 function formatMediaFile(row: Record<string, unknown>) {
-  const { size_bytes, filename, thumbnail_path, ...rest } = row;
+  const { size_bytes, filename, thumbnail_path, width, height, fps, ...rest } = row;
   return {
     ...rest,
     filename,
     size: size_bytes,
     url: `/uploads/${filename}`,
     thumbnail_url: thumbnail_path ? `/uploads/thumbnails/${thumbnail_path}` : undefined,
+    width: width ?? null,
+    height: height ?? null,
+    fps: fps ?? null,
   };
 }
 
@@ -146,33 +181,72 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
 
   let durationSeconds: number | null = null;
   let thumbnailPath: string | null = null;
+  let width: number | null = null;
+  let height: number | null = null;
+  let fps: number | null = null;
 
   if (isVideo(file.mimetype)) {
     const thumbnailFilename = `${id}.jpg`;
-    [durationSeconds, thumbnailPath] = await Promise.all([
-      getVideoDuration(filePath),
+    const [meta, thumb] = await Promise.all([
+      getVideoMetadata(filePath),
       generateThumbnail(filePath, thumbnailFilename),
     ]);
+    durationSeconds = meta.duration;
+    width = meta.width;
+    height = meta.height;
+    fps = meta.fps;
+    thumbnailPath = thumb;
+    logger.info({ id, original_name: file.originalname, duration: durationSeconds, width, height, fps }, 'Video metadata extracted');
   } else if (file.mimetype.startsWith('audio/')) {
-    durationSeconds = await getVideoDuration(filePath); // ffprobe works for audio too
+    durationSeconds = await getAudioDuration(filePath);
   }
 
   db.prepare(`
-    INSERT INTO media_files (id, filename, original_name, mime_type, size_bytes, duration_seconds, thumbnail_path, created_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(id, file.filename, file.originalname, file.mimetype, file.size, durationSeconds, thumbnailPath, now);
+    INSERT INTO media_files (id, filename, original_name, mime_type, size_bytes, duration_seconds, thumbnail_path, width, height, fps, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, file.filename, file.originalname, file.mimetype, file.size, durationSeconds, thumbnailPath, width, height, fps, now);
 
   const row = db.prepare('SELECT * FROM media_files WHERE id = ?').get(id) as Record<string, unknown>;
   res.status(201).json(formatMediaFile(row));
 });
 
-// GET /api/media — list media files with pagination (excluding soft-deleted)
+// GET /api/media — list media files with pagination and optional filters (excluding soft-deleted)
+// Query params: limit, offset, search/q (name), type (image|video|audio), minSize, maxSize
 router.get('/', (req: Request, res: Response) => {
-  const limit  = Math.max(1, parseInt(String(req.query.limit  ?? 50), 10) || 50);
-  const offset = Math.max(0, parseInt(String(req.query.offset ?? 0),  10) || 0);
+  const limit   = Math.max(1, parseInt(String(req.query.limit  ?? 50), 10) || 50);
+  const offset  = Math.max(0, parseInt(String(req.query.offset ?? 0),  10) || 0);
+  const search  = String(req.query.search ?? req.query.q ?? '').trim();
+  const type    = String(req.query.type ?? '').trim().toLowerCase();
+  const minSize = req.query.minSize !== undefined ? parseInt(String(req.query.minSize), 10) : null;
+  const maxSize = req.query.maxSize !== undefined ? parseInt(String(req.query.maxSize), 10) : null;
 
-  const { total } = db.prepare('SELECT COUNT(*) AS total FROM media_files WHERE deleted_at IS NULL').get() as { total: number };
-  const rows = db.prepare('SELECT * FROM media_files WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit, offset) as Array<Record<string, unknown>>;
+  const conditions: string[] = ['deleted_at IS NULL'];
+  const params: unknown[] = [];
+
+  if (search) {
+    conditions.push("original_name LIKE ?");
+    params.push(`%${search}%`);
+  }
+
+  if (type === 'image' || type === 'video' || type === 'audio') {
+    conditions.push("mime_type LIKE ?");
+    params.push(`${type}/%`);
+  }
+
+  if (minSize !== null && !isNaN(minSize)) {
+    conditions.push("size_bytes >= ?");
+    params.push(minSize);
+  }
+
+  if (maxSize !== null && !isNaN(maxSize)) {
+    conditions.push("size_bytes <= ?");
+    params.push(maxSize);
+  }
+
+  const where = `WHERE ${conditions.join(' AND ')}`;
+
+  const { total } = db.prepare(`SELECT COUNT(*) AS total FROM media_files ${where}`).get(...params) as { total: number };
+  const rows = db.prepare(`SELECT * FROM media_files ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`).all(...params, limit, offset) as Array<Record<string, unknown>>;
 
   res.json({ items: rows.map(formatMediaFile), total, limit, offset });
 });

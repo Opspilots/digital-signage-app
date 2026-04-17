@@ -61,9 +61,15 @@ export const authApi = {
 
 // Media
 export const mediaApi = {
-  list: (params?: { limit?: number; offset?: number }) => {
-    const qs = params ? `?limit=${params.limit ?? 50}&offset=${params.offset ?? 0}` : ''
-    return request<PaginatedResponse<MediaFile>>(`/api/media${qs}`)
+  list: (params?: { limit?: number; offset?: number; search?: string; type?: string; minSize?: number; maxSize?: number }) => {
+    const p = new URLSearchParams()
+    p.set('limit', String(params?.limit ?? 50))
+    p.set('offset', String(params?.offset ?? 0))
+    if (params?.search) p.set('search', params.search)
+    if (params?.type)   p.set('type', params.type)
+    if (params?.minSize !== undefined) p.set('minSize', String(params.minSize))
+    if (params?.maxSize !== undefined) p.set('maxSize', String(params.maxSize))
+    return request<PaginatedResponse<MediaFile>>(`/api/media?${p.toString()}`)
   },
   upload: async (file: File) => {
     const form = new FormData()
@@ -123,6 +129,13 @@ export const playlistApi = {
     request<Playlist>(`/api/playlists/${id}/duplicate`, { method: 'POST' }),
   delete: (id: string) =>
     request<void>(`/api/playlists/${id}`, { method: 'DELETE' }),
+  exportPlaylist: (id: string) =>
+    request<Record<string, unknown>>(`/api/playlists/${id}/export`),
+  importPlaylist: (data: Record<string, unknown>) =>
+    request<{ playlist: Playlist; warnings: string[] }>('/api/playlists/import', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
 }
 
 // Screens

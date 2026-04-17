@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom'
 import { scheduleApi, playlistApi, screenApi } from '../api/client'
 import type { Schedule, Playlist, Screen } from '../api/types'
 import { DAYS, DAY_BITS, isDayActive, daysLabel } from '../utils/schedule'
+import ConfirmModal from '../components/ConfirmModal'
 
 export default function ScreenSchedules() {
   const { screenId } = useParams<{ screenId: string }>()
@@ -14,6 +15,8 @@ export default function ScreenSchedules() {
   const [warning,    setWarning]   = useState<string | null>(null)
   const [showForm,   setShowForm]  = useState(false)
   const [submitting, setSubmitting]= useState(false)
+  const [confirmOpen,     setConfirmOpen]     = useState(false)
+  const [confirmScheduleId, setConfirmScheduleId] = useState<string | null>(null)
 
   const [form, setForm] = useState({ playlist_id: '', days_of_week: 31, start_time: '09:00', end_time: '18:00', priority: 0 })
 
@@ -43,15 +46,29 @@ export default function ScreenSchedules() {
     finally { setSubmitting(false) }
   }
 
-  const handleDelete = async (scheduleId: string) => {
-    if (!screenId || !confirm('¿Eliminar este horario?')) return
+  const handleDelete = (scheduleId: string) => {
+    setConfirmScheduleId(scheduleId)
+    setConfirmOpen(true)
+  }
+
+  const executeDelete = async () => {
+    setConfirmOpen(false)
+    if (!screenId || !confirmScheduleId) return
+    const scheduleId = confirmScheduleId
+    setConfirmScheduleId(null)
     try {
       await scheduleApi.delete(screenId, scheduleId)
       setSchedules((prev) => prev.filter((s) => s.id !== scheduleId))
     } catch (e) { setError(String(e)) }
   }
 
-  if (loading) return <div className="p-8 text-sm" style={{ color: 'var(--text2)' }}>Cargando…</div>
+  if (loading) return (
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto animate-pulse space-y-3">
+      {[...Array(4)].map((_, i) => (
+        <div key={i} className="h-16 rounded-xl bg-gray-200 dark:bg-gray-700" />
+      ))}
+    </div>
+  )
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
@@ -166,6 +183,14 @@ export default function ScreenSchedules() {
           ))}
         </ul>
       )}
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Eliminar horario"
+        message="¿Eliminar este horario? Esta acción no se puede deshacer."
+        onConfirm={executeDelete}
+        onCancel={() => { setConfirmOpen(false); setConfirmScheduleId(null) }}
+      />
     </div>
   )
 }

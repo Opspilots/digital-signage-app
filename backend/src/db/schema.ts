@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
+import logger from '../utils/logger';
 
 const DB_PATH = path.join(__dirname, '../../data/signage.db');
 
@@ -142,6 +143,18 @@ if (!mediaInfo2.some(col => col.name === 'deleted_at')) {
   db.exec('ALTER TABLE media_files ADD COLUMN deleted_at DATETIME DEFAULT NULL');
 }
 
+// Video metadata columns (width, height, fps)
+const mediaInfo3 = db.prepare('PRAGMA table_info(media_files)').all() as Array<{ name: string }>;
+if (!mediaInfo3.some(col => col.name === 'width')) {
+  db.exec('ALTER TABLE media_files ADD COLUMN width INTEGER DEFAULT NULL');
+}
+if (!mediaInfo3.some(col => col.name === 'height')) {
+  db.exec('ALTER TABLE media_files ADD COLUMN height INTEGER DEFAULT NULL');
+}
+if (!mediaInfo3.some(col => col.name === 'fps')) {
+  db.exec('ALTER TABLE media_files ADD COLUMN fps REAL DEFAULT NULL');
+}
+
 // Pairing code on screens (rotating short code vs permanent token)
 const screensInfo = db.prepare('PRAGMA table_info(screens)').all() as Array<{ name: string }>;
 if (!screensInfo.some(col => col.name === 'pairing_code')) {
@@ -149,6 +162,41 @@ if (!screensInfo.some(col => col.name === 'pairing_code')) {
 }
 if (!screensInfo.some(col => col.name === 'pairing_expires_at')) {
   db.exec('ALTER TABLE screens ADD COLUMN pairing_expires_at TEXT');
+}
+
+// Make media_file_id nullable in playlist_items (needed for imported playlists with missing files)
+// SQLite doesn't support ALTER COLUMN, so we rebuild the table if it still has the NOT NULL constraint.
+{
+  const colInfo = db.prepare('PRAGMA table_info(playlist_items)').all() as Array<{ name: string; notnull: number }>;
+  const col = colInfo.find(c => c.name === 'media_file_id');
+  if (col && col.notnull === 1) {
+    // Disable FK enforcement, rebuild table, re-enable FK
+    db.pragma('foreign_keys = OFF');
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE playlist_items_new (
+          id TEXT PRIMARY KEY,
+          playlist_id TEXT NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
+          media_file_id TEXT REFERENCES media_files(id) ON DELETE CASCADE,
+          position INTEGER NOT NULL DEFAULT 0,
+          display_duration INTEGER NOT NULL DEFAULT 5,
+          transition_type TEXT NOT NULL DEFAULT 'none',
+          transition_duration INTEGER NOT NULL DEFAULT 500,
+          days_of_week INTEGER NOT NULL DEFAULT 0,
+          start_time TEXT,
+          end_time TEXT
+        );
+        INSERT INTO playlist_items_new
+          SELECT id, playlist_id, media_file_id, position, display_duration,
+                 transition_type, transition_duration, days_of_week, start_time, end_time
+          FROM playlist_items;
+        DROP TABLE playlist_items;
+        ALTER TABLE playlist_items_new RENAME TO playlist_items;
+      `);
+    })();
+    db.pragma('foreign_keys = ON');
+    db.exec('CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_id ON playlist_items(playlist_id)');
+  }
 }
 
 // Seed default admin user from env vars on first run
@@ -161,7 +209,7 @@ if (!existingAdmin) {
   db.prepare('INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)').run(
     uuidv4(), ADMIN_USERNAME, hash, 'admin'
   );
-  console.log(`[db] Default admin user '${ADMIN_USERNAME}' created`);
+  logger.info(`[db] Default admin user '${ADMIN_USERNAME}' created`);
 }
 
 export default db;

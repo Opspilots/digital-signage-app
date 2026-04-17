@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import {
   DndContext,
@@ -218,6 +218,9 @@ export default function PlaylistEditor() {
   const [titleDraft, setTitleDraft] = useState('')
   const [descDraft, setDescDraft] = useState('')
   const [dirty, setDirty] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [importing, setImporting] = useState(false)
+  const importInputRef = useRef<HTMLInputElement>(null)
   const toast = useToast()
 
   const sensors = useSensors(
@@ -304,6 +307,48 @@ export default function PlaylistEditor() {
     }
   }
 
+  const handleExport = async () => {
+    if (!id) return
+    setExporting(true)
+    try {
+      const data = await playlistApi.exportPlaylist(id)
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `playlist-${(playlist?.title ?? 'export').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Lista exportada')
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    setImporting(true)
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text) as Record<string, unknown>
+      const result = await playlistApi.importPlaylist(data)
+      if (result.warnings.length > 0) {
+        toast.success(`Lista importada con ${result.warnings.length} advertencia${result.warnings.length !== 1 ? 's' : ''}`)
+        setError(result.warnings.join('\n'))
+      } else {
+        toast.success('Lista importada correctamente')
+      }
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setImporting(false)
+    }
+  }
+
   const handleSave = async () => {
     if (!id) return
     setSaving(true)
@@ -333,9 +378,34 @@ export default function PlaylistEditor() {
             {titleDraft || 'Sin título'}
           </h1>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button onClick={handleSave} disabled={saving || !dirty} className="ds-btn" style={{ opacity: (!dirty || saving) ? 0.4 : 1 }}>
             {saving ? 'Guardando…' : 'Guardar'}
+          </button>
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="ds-btn"
+            style={{ background: 'var(--surface2)', color: 'var(--text1)', border: '1px solid var(--border)' }}
+            title="Exportar lista como JSON"
+          >
+            {exporting ? 'Exportando…' : 'Exportar'}
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept=".json"
+            className="hidden"
+            onChange={handleImportFile}
+          />
+          <button
+            onClick={() => importInputRef.current?.click()}
+            disabled={importing}
+            className="ds-btn"
+            style={{ background: 'var(--surface2)', color: 'var(--text1)', border: '1px solid var(--border)' }}
+            title="Importar lista desde JSON"
+          >
+            {importing ? 'Importando…' : 'Importar'}
           </button>
           <Link to={`/playlists/${id}/play`} className="ds-btn"
             style={{ background: 'var(--green-muted)', color: 'var(--green)', border: '1px solid rgba(52,211,153,0.2)' }}>
