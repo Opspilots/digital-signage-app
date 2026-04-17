@@ -99,9 +99,9 @@ export async function refresh(): Promise<void> {
     body: JSON.stringify({ refresh_token: refreshToken }),
   })
   if (!res.ok) throw new Error('Refresh failed')
-  const data = await res.json() as { access_token: string }
-  // Keep same refresh token, just update access token
-  setTokens(data.access_token, refreshToken)
+  const data = await res.json() as { access_token: string; refresh_token?: string }
+  // Use the rotated refresh token if the server returns one; otherwise keep the existing one
+  setTokens(data.access_token, data.refresh_token ?? refreshToken)
 }
 
 export function logout(): void {

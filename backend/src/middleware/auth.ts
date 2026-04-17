@@ -13,6 +13,17 @@ export interface AuthPayload {
   type: 'access' | 'refresh';
 }
 
+// Routes where screen tokens (device tokens) are permitted
+const SCREEN_TOKEN_PUBLIC_PATHS = [
+  '/api/screens/pair',
+  '/api/screens/heartbeat',
+  '/api/screens/content',
+];
+
+function isScreenTokenPublicPath(path: string): boolean {
+  return SCREEN_TOKEN_PUBLIC_PATHS.some((p) => path.startsWith(p));
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
@@ -21,13 +32,16 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
   const token = header.slice(7);
 
-  // Accept any registered screen token for GET (read-only player access)
-  if (req.method === 'GET') {
-    const screenRow = db.prepare('SELECT id FROM screens WHERE token = ?').get(token);
-    if (screenRow) {
+  // Screen tokens are only valid on public screen endpoints
+  const screenRow = db.prepare('SELECT id FROM screens WHERE token = ?').get(token);
+  if (screenRow) {
+    if (isScreenTokenPublicPath(req.path)) {
       next();
       return;
     }
+    // Screen token used on a protected admin route — reject
+    res.status(403).json({ error: 'Screen tokens are not allowed on this endpoint' });
+    return;
   }
 
   try {

@@ -22,6 +22,9 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 
 const AUTO_DISMISS_MS = 5000
 
+// Monotonically increasing counter — guarantees unique IDs across rapid successive calls
+let _toastId = 0
+
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
@@ -30,7 +33,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const show = useCallback((message: string, kind: ToastKind = 'info') => {
-    const id = Date.now() + Math.random()
+    const id = ++_toastId
     setToasts((prev) => [...prev, { id, kind, message }])
     setTimeout(() => dismiss(id), AUTO_DISMISS_MS)
   }, [dismiss])

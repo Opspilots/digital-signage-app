@@ -1,7 +1,17 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import rateLimit from 'express-rate-limit';
 import db from '../db/schema';
 import { timeToMinutes } from './schedules';
+
+// Rate limit: max 5 pairing requests per minute per IP
+const pairNewLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Demasiadas solicitudes de emparejamiento. Inténtalo de nuevo en un minuto.' },
+});
 
 const router = Router();
 
@@ -210,7 +220,7 @@ function generatePairingCode(): string {
 
 // POST /api/screens/pair/new (public) — request a pairing code.
 // Creates a pending screen with placeholder name. Returns code + token.
-screensPublicRouter.post('/pair/new', (_req: Request, res: Response) => {
+screensPublicRouter.post('/pair/new', pairNewLimiter, (_req: Request, res: Response) => {
   // Garbage collect expired pending screens
   db.prepare('DELETE FROM screens WHERE pairing_code IS NOT NULL AND pairing_expires_at < ?')
     .run(new Date().toISOString());
@@ -288,12 +298,12 @@ screensPublicRouter.post('/heartbeat', (req: Request, res: Response) => {
     UPDATE screens SET last_seen_at = ?, status = 'online', updated_at = ? WHERE id = ?
   `).run(now, now, screen.id);
 
-  // Resolve active playlist via schedule
+  // Resolve active playlist via schedule — all comparisons done in UTC
   const nowDate = new Date();
-  // JS getDay(): 0=Sun, 1=Mon...6=Sat → bitmask: Mon=1,Tue=2,...,Sun=64
-  const jsDow = nowDate.getDay();
+  // getUTCDay(): 0=Sun, 1=Mon...6=Sat → bitmask: Mon=1,Tue=2,...,Sun=64
+  const jsDow = nowDate.getUTCDay();
   const dowBit = jsDow === 0 ? 64 : (1 << (jsDow - 1));
-  const currentMinutes = nowDate.getHours() * 60 + nowDate.getMinutes();
+  const currentMinutes = nowDate.getUTCHours() * 60 + nowDate.getUTCMinutes();
 
   type ScheduleRow = { id: string; playlist_id: string; days_of_week: number; start_time: string; end_time: string; priority: number };
   const schedules = db.prepare(`

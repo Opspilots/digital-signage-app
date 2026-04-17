@@ -4,6 +4,10 @@ import jwt from 'jsonwebtoken';
 import db from '../db/schema';
 import { JWT_SECRET, JWT_ACCESS_TTL, JWT_REFRESH_TTL, AuthPayload } from '../middleware/auth';
 
+// In-memory revoked refresh token set (jti-based rotation).
+// A revoked token cannot be reused even if still within its TTL.
+const revokedRefreshJtis = new Set<string>();
+
 const router = Router();
 
 interface UserRow {
@@ -45,9 +49,16 @@ router.post('/refresh', (req: Request, res: Response) => {
   }
 
   try {
-    const payload = jwt.verify(refresh_token, JWT_SECRET) as AuthPayload;
+    const payload = jwt.verify(refresh_token, JWT_SECRET) as AuthPayload & { jti?: string };
     if (payload.type !== 'refresh') {
       res.status(401).json({ error: 'Invalid token type' });
+      return;
+    }
+
+    // Reject if this refresh token was already rotated (one-time use)
+    const jti = payload.jti;
+    if (jti && revokedRefreshJtis.has(jti)) {
+      res.status(401).json({ error: 'Refresh token already used' });
       return;
     }
 
@@ -59,13 +70,24 @@ router.post('/refresh', (req: Request, res: Response) => {
     }
 
     const userWithRole = db.prepare('SELECT role FROM users WHERE id = ?').get(user.id) as { role: string } | undefined;
+    const basePayload = { sub: user.id, username: user.username, role: userWithRole?.role ?? 'editor' };
+
     const accessToken = jwt.sign(
-      { sub: user.id, username: user.username, role: userWithRole?.role ?? 'editor', type: 'access' },
+      { ...basePayload, type: 'access' },
       JWT_SECRET,
       { expiresIn: JWT_ACCESS_TTL }
     );
 
-    res.json({ access_token: accessToken, token_type: 'Bearer' });
+    // Rotate: issue a new refresh token and revoke the old one
+    const newRefreshToken = jwt.sign(
+      { ...basePayload, type: 'refresh' },
+      JWT_SECRET,
+      { expiresIn: JWT_REFRESH_TTL, jwtid: crypto.randomUUID() }
+    );
+
+    if (jti) revokedRefreshJtis.add(jti);
+
+    res.json({ access_token: accessToken, refresh_token: newRefreshToken, token_type: 'Bearer' });
   } catch {
     res.status(401).json({ error: 'Invalid or expired refresh token' });
   }

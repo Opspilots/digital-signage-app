@@ -292,6 +292,21 @@ router.put('/:id/items', (req: Request, res: Response) => {
     return;
   }
 
+  // Validate all media_file_ids exist before starting the transaction
+  if (items.length > 0) {
+    const missingIds: string[] = [];
+    for (const item of items) {
+      const exists = db.prepare('SELECT id FROM media_files WHERE id = ?').get(item.media_file_id);
+      if (!exists) missingIds.push(item.media_file_id);
+    }
+    if (missingIds.length > 0) {
+      res.status(400).json({
+        error: `The following media_file_ids were not found: ${missingIds.join(', ')}`,
+      });
+      return;
+    }
+  }
+
   const replaceItems = db.transaction(() => {
     db.prepare('DELETE FROM playlist_items WHERE playlist_id = ?').run(id);
 

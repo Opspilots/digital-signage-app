@@ -130,6 +130,17 @@ export default function PlaylistPlayer() {
     if (currentIndex >= activeItems.length) setCurrentIndex(0)
   }, [activeItems.length, currentIndex])
 
+  const scheduleAdvance = useCallback((durationSec: number) => {
+    if (timerRef.current) clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(() => {
+      setCurrentIndex((prev) => {
+        const next = prev + 1 < activeItems.length ? prev + 1 : 0
+        setTransitionKey((k) => k + 1)
+        return next
+      })
+    }, durationSec * 1000)
+  }, [activeItems.length])
+
   useEffect(() => {
     if (activeItems.length === 0) return
     const item = activeItems[currentIndex]
@@ -139,16 +150,16 @@ export default function PlaylistPlayer() {
 
     const isVideo = item.media_file?.mime_type.startsWith('video/')
     if (!isVideo) {
-      timerRef.current = setTimeout(() => {
-        const nextIdx = currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0
-        goTo(nextIdx)
-      }, item.display_duration * 1000)
+      // Images and other non-video items: advance after display_duration
+      scheduleAdvance(item.display_duration)
     }
+    // For video items the timer is set in onLoadedMetadata using Math.max(display_duration, videoDuration).
+    // onEnded also advances immediately when the video finishes naturally.
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [currentIndex, activeItems, goTo])
+  }, [currentIndex, activeItems, goTo, scheduleAdvance])
 
   const toggleFullscreen = useCallback(async () => {
     try {
@@ -290,6 +301,12 @@ export default function PlaylistPlayer() {
           autoPlay
           muted={muted}
           playsInline
+          onLoadedMetadata={(e) => {
+            // Respect the longer of the configured duration and the actual video length
+            const videoDuration = (e.target as HTMLVideoElement).duration
+            const effectiveDuration = Math.max(currentItem.display_duration, isFinite(videoDuration) ? videoDuration : 0)
+            scheduleAdvance(effectiveDuration)
+          }}
           onEnded={() => goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0)}
           onError={() => goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0)}
         />
