@@ -48,6 +48,7 @@ export default function PlaylistPlayer() {
   const [volume, setVolume] = useState(1)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [networkOk, setNetworkOk] = useState(true)
+  const [mediaLoading, setMediaLoading] = useState(true)
   const videoRef = useRef<HTMLVideoElement>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hudTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -114,6 +115,7 @@ export default function PlaylistPlayer() {
   }, [screenToken])
 
   const goTo = useCallback((index: number) => {
+    setMediaLoading(true)
     setCurrentIndex(index)
     setTransitionKey((k) => k + 1)
   }, [])
@@ -301,6 +303,7 @@ export default function PlaylistPlayer() {
           autoPlay
           muted={muted}
           playsInline
+          onLoadedData={() => setMediaLoading(false)}
           onLoadedMetadata={(e) => {
             // Respect the longer of the configured duration and the actual video length
             const videoDuration = (e.target as HTMLVideoElement).duration
@@ -308,7 +311,7 @@ export default function PlaylistPlayer() {
             scheduleAdvance(effectiveDuration)
           }}
           onEnded={() => goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0)}
-          onError={() => goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0)}
+          onError={() => { setMediaLoading(false); goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0) }}
         />
       ) : (
         <img
@@ -317,7 +320,16 @@ export default function PlaylistPlayer() {
           alt={currentItem.media_file?.original_name ?? ''}
           className={`max-w-full max-h-screen object-contain ${animationClass}`}
           style={animationStyle}
+          onLoad={() => setMediaLoading(false)}
+          onError={() => setMediaLoading(false)}
         />
+      )}
+
+      {/* Loading spinner — shown while media is buffering */}
+      {mediaLoading && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none" style={{ zIndex: 5 }}>
+          <div className="w-10 h-10 rounded-full border-4 border-white/20 border-t-white/80 animate-spin" />
+        </div>
       )}
 
       {/* Persistent offline badge (visible regardless of HUD) */}

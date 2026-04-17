@@ -8,9 +8,23 @@ function authHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+const REQUEST_TIMEOUT_MS = 30_000
+
+function fetchWithTimeout(url: string, options?: RequestInit): Promise<Response> {
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+  return fetch(url, { ...options, signal: controller.signal })
+    .then((res) => { clearTimeout(timeoutId); return res })
+    .catch((e: unknown) => {
+      clearTimeout(timeoutId)
+      if (e instanceof Error && e.name === 'AbortError') throw new Error('Request timeout')
+      throw e
+    })
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const makeRequest = () =>
-    fetch(`${BASE_URL}${path}`, {
+    fetchWithTimeout(`${BASE_URL}${path}`, {
       ...options,
       headers: { 'Content-Type': 'application/json', ...authHeaders(), ...options?.headers },
     })

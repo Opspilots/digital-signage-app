@@ -68,8 +68,18 @@ export default function Screens() {
 
   useEffect(() => {
     load()
-    const interval = setInterval(load, 30_000)
-    return () => clearInterval(interval)
+    const interval = setInterval(() => {
+      // Skip polling while the tab is in the background
+      if (document.visibilityState === 'visible') load()
+    }, 60_000)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') load()
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [])
 
   const handleCreate = async (e: React.FormEvent) => {

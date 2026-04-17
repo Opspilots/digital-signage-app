@@ -14,6 +14,20 @@ function notify() {
   listeners.forEach((fn) => fn())
 }
 
+// BroadcastChannel: sync access token across tabs to avoid race conditions on refresh
+const authChannel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('auth') : null
+if (authChannel) {
+  authChannel.onmessage = (e: MessageEvent) => {
+    if (e.data?.type === 'token' && typeof e.data.accessToken === 'string') {
+      accessToken = e.data.accessToken
+      notify()
+    } else if (e.data?.type === 'logout') {
+      accessToken = null
+      notify()
+    }
+  }
+}
+
 export function onAuthChange(fn: AuthListener): () => void {
   listeners.push(fn)
   return () => {
@@ -73,7 +87,13 @@ function setTokens(access: string | null, rtoken: string | null) {
     localStorage.removeItem(REFRESH_TOKEN_KEY)
   }
   if (refreshTimer) clearTimeout(refreshTimer)
-  if (access) scheduleRefresh(access)
+  if (access) {
+    scheduleRefresh(access)
+    // Broadcast new token to other tabs so they don't need to refresh independently
+    authChannel?.postMessage({ type: 'token', accessToken: access })
+  } else {
+    authChannel?.postMessage({ type: 'logout' })
+  }
   notify()
 }
 

@@ -12,6 +12,18 @@ function timeToMinutes(hhmm: string): number {
   return h * 60 + m;
 }
 
+/**
+ * Returns true if minute `m` falls within the range [start, end).
+ * Handles overnight ranges (start >= end) by wrapping across midnight.
+ */
+function minuteInRange(m: number, start: number, end: number): boolean {
+  if (start < end) {
+    return m >= start && m < end;
+  }
+  // Overnight: active if m >= start (evening side) OR m < end (morning side)
+  return m >= start || m < end;
+}
+
 /** Returns true if the two schedules share at least one day AND their time ranges overlap. */
 function schedulesOverlap(
   a: { days_of_week: number; start_time: string; end_time: string },
@@ -22,7 +34,8 @@ function schedulesOverlap(
   const aEnd = timeToMinutes(a.end_time);
   const bStart = timeToMinutes(b.start_time);
   const bEnd = timeToMinutes(b.end_time);
-  return aStart < bEnd && bStart < aEnd;
+  // Check overlap by testing if either range's start falls within the other range
+  return minuteInRange(aStart, bStart, bEnd) || minuteInRange(bStart, aStart, aEnd);
 }
 
 function validateTimeFormat(t: string): boolean {
@@ -86,10 +99,7 @@ router.post('/', (req: Request, res: Response) => {
     res.status(400).json({ error: 'end_time must be HH:MM' });
     return;
   }
-  if (timeToMinutes(start_time) >= timeToMinutes(end_time)) {
-    res.status(400).json({ error: 'start_time must be before end_time' });
-    return;
-  }
+  // Allow start_time >= end_time for overnight schedules (e.g. 23:00-02:00)
 
   const playlist = db.prepare('SELECT id FROM playlists WHERE id = ?').get(playlist_id);
   if (!playlist) {

@@ -320,7 +320,11 @@ screensPublicRouter.post('/heartbeat', (req: Request, res: Response) => {
     if ((sched.days_of_week & dowBit) === 0) continue;
     const start = timeToMinutes(sched.start_time);
     const end = timeToMinutes(sched.end_time);
-    if (currentMinutes >= start && currentMinutes < end) {
+    // Handle overnight schedules (e.g. 23:00-02:00): start >= end wraps across midnight
+    const isActive = start < end
+      ? currentMinutes >= start && currentMinutes < end
+      : currentMinutes >= start || currentMinutes < end;
+    if (isActive) {
       resolvedPlaylistId = sched.playlist_id;
       scheduleActive = true;
       break;
