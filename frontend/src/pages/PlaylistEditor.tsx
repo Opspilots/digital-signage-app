@@ -22,7 +22,7 @@ import type { Playlist, PlaylistItem } from '../api/types'
 import MediaLibrary from './MediaLibrary'
 import type { MediaFile } from '../api/types'
 import { useToast } from '../toast'
-import { DAYS, DAY_BITS, isDayActive } from '../utils/schedule'
+import { DAY_BITS, isDayActive } from '../utils/schedule'
 
 // Etiquetas cortas para el editor de ítems
 const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
