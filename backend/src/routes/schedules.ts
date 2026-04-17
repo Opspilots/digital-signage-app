@@ -154,5 +154,5 @@ router.delete('/:scheduleId', (req: Request, res: Response) => {
   res.status(204).send();
 });
 
-export { timeToMinutes };
+export { timeToMinutes, minuteInRange };
 export default router;

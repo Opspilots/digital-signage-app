@@ -1,5 +1,6 @@
 import type { MediaFile, Playlist, PlaylistItem, Screen, Schedule, User, PaginatedResponse, UserMe } from './types'
 import { getAccessToken, refresh, logout } from '../auth'
+import { MediaFileSchema, PlaylistSchema, ScreenSchema } from './schemas'
 
 export const BASE_URL = import.meta.env.VITE_API_URL ?? ''
 
@@ -69,7 +70,11 @@ export const mediaApi = {
     if (params?.type)   p.set('type', params.type)
     if (params?.minSize !== undefined) p.set('minSize', String(params.minSize))
     if (params?.maxSize !== undefined) p.set('maxSize', String(params.maxSize))
-    return request<PaginatedResponse<MediaFile>>(`/api/media?${p.toString()}`)
+    return request<PaginatedResponse<MediaFile>>(`/api/media?${p.toString()}`).then((data) => {
+      const parsed = MediaFileSchema.array().safeParse(data.items)
+      if (!parsed.success) console.warn('API schema mismatch [media.list]:', parsed.error)
+      return parsed.success ? { ...data, items: parsed.data as MediaFile[] } : data
+    })
   },
   upload: async (file: File) => {
     const form = new FormData()
@@ -109,7 +114,11 @@ export const mediaApi = {
 export const playlistApi = {
   list: (params?: { limit?: number; offset?: number }) => {
     const qs = params ? `?limit=${params.limit ?? 50}&offset=${params.offset ?? 0}` : ''
-    return request<PaginatedResponse<Playlist>>(`/api/playlists${qs}`)
+    return request<PaginatedResponse<Playlist>>(`/api/playlists${qs}`).then((data) => {
+      const parsed = PlaylistSchema.array().safeParse(data.items)
+      if (!parsed.success) console.warn('API schema mismatch [playlist.list]:', parsed.error)
+      return parsed.success ? { ...data, items: parsed.data as Playlist[] } : data
+    })
   },
   get: (id: string, screenToken?: string) => {
     const headers = screenToken ? { Authorization: `Bearer ${screenToken}` } : undefined
@@ -140,7 +149,11 @@ export const playlistApi = {
 
 // Screens
 export const screenApi = {
-  list: () => request<Screen[]>('/api/screens'),
+  list: () => request<Screen[]>('/api/screens').then((data) => {
+    const parsed = ScreenSchema.array().safeParse(data)
+    if (!parsed.success) console.warn('API schema mismatch [screen.list]:', parsed.error)
+    return parsed.success ? (parsed.data as Screen[]) : data
+  }),
   get: (id: string) => request<Screen>(`/api/screens/${id}`),
   create: (data: { name: string; location?: string }) =>
     request<Screen>('/api/screens', { method: 'POST', body: JSON.stringify(data) }),

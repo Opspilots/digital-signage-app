@@ -618,7 +618,7 @@ export default function Screens() {
                   Escanea con el móvil o la pantalla para abrir <span style={{ color: 'var(--text1)' }}>{qrScreen.name}</span>.
                 </p>
                 <div style={{ padding: 16, background: '#fff', borderRadius: 12 }}>
-                  <QRCodeSVG value={url} size={220} level="M" />
+                  <QRCodeSVG value={url} size={160} level="M" />
                 </div>
                 <div className="w-full">
                   <p className="text-xs font-500 uppercase tracking-widest mb-1" style={{ color: 'var(--text3)' }}>URL</p>
