@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
+import crypto from 'crypto';
+import { execFile } from 'child_process';
 import logger from './utils/logger';
 import mediaRouter from './routes/media';
 import playlistsRouter from './routes/playlists';
@@ -25,6 +27,26 @@ app.use(express.json());
 
 // Serve uploaded media files as static assets
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// GitHub webhook — auto deploy on push to master
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
+const DEPLOY_SCRIPT = path.join(__dirname, '../../scripts/deploy.sh');
+app.post('/webhook/github', express.raw({ type: 'application/json' }), (req, res) => {
+  if (!WEBHOOK_SECRET) { res.status(503).json({ error: 'Webhook not configured' }); return; }
+  const sig = req.headers['x-hub-signature-256'] as string | undefined;
+  const expected = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET).update(req.body).digest('hex');
+  if (!sig || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+    res.status(401).json({ error: 'Invalid signature' }); return;
+  }
+  const payload = JSON.parse(req.body.toString());
+  if (payload.ref !== 'refs/heads/master') { res.json({ skipped: true }); return; }
+  logger.info('GitHub webhook: deploying...');
+  res.json({ ok: true, message: 'Deploy started' });
+  execFile('bash', [DEPLOY_SCRIPT], { timeout: 300_000 }, (err, stdout, stderr) => {
+    if (err) logger.error({ err, stderr }, 'Deploy failed');
+    else logger.info({ stdout }, 'Deploy completed');
+  });
+});
 
 // Public routes (no auth required)
 app.use('/api/auth', authRouter);
