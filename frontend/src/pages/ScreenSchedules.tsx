@@ -2,16 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { scheduleApi, playlistApi, screenApi } from '../api/client'
 import type { Schedule, Playlist, Screen } from '../api/types'
-
-const DAYS    = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
-const DAY_BITS = [1, 2, 4, 8, 16, 32, 64]
-
-function daysLabel(mask: number): string {
-  if (mask === 127) return 'Todos los días'
-  if (mask === 31)  return 'Entre semana'
-  if (mask === 96)  return 'Fines de semana'
-  return DAYS.filter((_, i) => mask & DAY_BITS[i]).join(', ')
-}
+import { DAYS, DAY_BITS, isDayActive, daysLabel } from '../utils/schedule'
 
 export default function ScreenSchedules() {
   const { screenId } = useParams<{ screenId: string }>()
@@ -30,8 +21,8 @@ export default function ScreenSchedules() {
     if (!screenId) return
     Promise.all([screenApi.get(screenId), scheduleApi.list(screenId), playlistApi.list()])
       .then(([s, scheds, pl]) => {
-        setScreen(s); setSchedules(scheds); setPlaylists(pl)
-        if (pl.length > 0) setForm((f) => ({ ...f, playlist_id: pl[0].id }))
+        setScreen(s); setSchedules(scheds); setPlaylists(pl.items)
+        if (pl.items.length > 0) setForm((f) => ({ ...f, playlist_id: pl.items[0].id }))
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
@@ -114,7 +105,7 @@ export default function ScreenSchedules() {
             <div className="flex gap-1.5 flex-wrap">
               {DAYS.map((day, i) => {
                 const bit    = DAY_BITS[i]
-                const active = !!(form.days_of_week & bit)
+                const active = isDayActive(form.days_of_week, i)
                 return (
                   <button key={day} type="button" onClick={() => toggleDay(bit)}
                     className="px-3 py-1.5 rounded-lg text-xs font-500 transition-colors"

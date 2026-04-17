@@ -37,6 +37,7 @@ const storage = multer.diskStorage({
 const ALLOWED_MIME_TYPES = [
   'image/jpeg', 'image/png', 'image/gif', 'image/webp',
   'video/mp4', 'video/webm',
+  'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/wav', 'audio/aac', 'audio/flac',
 ];
 
 const upload = multer({
@@ -93,6 +94,28 @@ function formatMediaFile(row: Record<string, unknown>) {
   };
 }
 
+// Magic byte signatures for allowed MIME types
+const MAGIC_BYTES: Record<string, Buffer[]> = {
+  'video/mp4': [
+    Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70]),
+    Buffer.from([0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70]),
+  ],
+  'image/jpeg': [Buffer.from([0xFF, 0xD8, 0xFF])],
+  'image/png':  [Buffer.from([0x89, 0x50, 0x4E, 0x47])],
+  'image/gif':  [Buffer.from([0x47, 0x49, 0x46, 0x38])],
+  'video/webm': [Buffer.from([0x1A, 0x45, 0xDF, 0xA3])],
+};
+
+function validateMagicBytes(filePath: string, mimeType: string): boolean {
+  const signatures = MAGIC_BYTES[mimeType];
+  if (!signatures) return true; // tipo no mapeado, acepta
+  const fd = fs.openSync(filePath, 'r');
+  const buf = Buffer.alloc(8);
+  fs.readSync(fd, buf, 0, 8, 0);
+  fs.closeSync(fd);
+  return signatures.some((sig) => buf.subarray(0, sig.length).equals(sig));
+}
+
 // POST /api/media — upload a file
 router.post('/', (req: Request, res: Response, next: NextFunction) => {
   upload.single('file')(req, res, (err) => {
@@ -109,9 +132,17 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
     return;
   }
 
+  const filePath = path.join(UPLOADS_DIR, file.filename);
+
+  // Validate magic bytes match the declared MIME type
+  if (!validateMagicBytes(filePath, file.mimetype)) {
+    fs.unlinkSync(filePath);
+    res.status(400).json({ error: `El contenido del archivo no coincide con el tipo declarado (${file.mimetype})` });
+    return;
+  }
+
   const id = uuidv4();
   const now = new Date().toISOString();
-  const filePath = path.join(UPLOADS_DIR, file.filename);
 
   let durationSeconds: number | null = null;
   let thumbnailPath: string | null = null;
@@ -122,6 +153,8 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
       getVideoDuration(filePath),
       generateThumbnail(filePath, thumbnailFilename),
     ]);
+  } else if (file.mimetype.startsWith('audio/')) {
+    durationSeconds = await getVideoDuration(filePath); // ffprobe works for audio too
   }
 
   db.prepare(`
@@ -133,36 +166,28 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
   res.status(201).json(formatMediaFile(row));
 });
 
-// GET /api/media — list all media files
-router.get('/', (_req: Request, res: Response) => {
-  const rows = db.prepare('SELECT * FROM media_files ORDER BY created_at DESC').all() as Array<Record<string, unknown>>;
-  res.json(rows.map(formatMediaFile));
+// GET /api/media — list media files with pagination (excluding soft-deleted)
+router.get('/', (req: Request, res: Response) => {
+  const limit  = Math.max(1, parseInt(String(req.query.limit  ?? 50), 10) || 50);
+  const offset = Math.max(0, parseInt(String(req.query.offset ?? 0),  10) || 0);
+
+  const { total } = db.prepare('SELECT COUNT(*) AS total FROM media_files WHERE deleted_at IS NULL').get() as { total: number };
+  const rows = db.prepare('SELECT * FROM media_files WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit, offset) as Array<Record<string, unknown>>;
+
+  res.json({ items: rows.map(formatMediaFile), total, limit, offset });
 });
 
-// DELETE /api/media/:id — delete media file
+// DELETE /api/media/:id — soft-delete media file (keeps physical file on disk)
 router.delete('/:id', (req: Request, res: Response) => {
   const { id } = req.params;
-  const row = db.prepare('SELECT * FROM media_files WHERE id = ?').get(id) as { filename: string; thumbnail_path: string | null } | undefined;
+  const row = db.prepare('SELECT * FROM media_files WHERE id = ? AND deleted_at IS NULL').get(id) as { filename: string; thumbnail_path: string | null } | undefined;
 
   if (!row) {
     res.status(404).json({ error: 'Media file not found' });
     return;
   }
 
-  // Delete files from disk
-  const filePath = path.join(UPLOADS_DIR, row.filename);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
-  }
-
-  if (row.thumbnail_path) {
-    const thumbPath = path.join(THUMBNAILS_DIR, row.thumbnail_path);
-    if (fs.existsSync(thumbPath)) {
-      fs.unlinkSync(thumbPath);
-    }
-  }
-
-  db.prepare('DELETE FROM media_files WHERE id = ?').run(id);
+  db.prepare("UPDATE media_files SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
   res.status(204).send();
 });
 

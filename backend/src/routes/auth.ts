@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import db from '../db/schema';
-import { JWT_SECRET, JWT_ACCESS_TTL, JWT_REFRESH_TTL, AuthPayload } from '../middleware/auth';
+import { JWT_SECRET, JWT_ACCESS_TTL, JWT_REFRESH_TTL, AuthPayload, requireAuth } from '../middleware/auth';
 
 // In-memory revoked refresh token set (jti-based rotation).
 // A revoked token cannot be reused even if still within its TTL.
@@ -91,6 +91,70 @@ router.post('/refresh', (req: Request, res: Response) => {
   } catch {
     res.status(401).json({ error: 'Invalid or expired refresh token' });
   }
+});
+
+// GET /api/auth/me — return current user from DB (no password_hash)
+router.get('/me', requireAuth, (req: Request, res: Response) => {
+  const user = (req as Request & { user?: AuthPayload }).user;
+  if (!user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const row = db.prepare(
+    'SELECT id, username, email, role, created_at FROM users WHERE id = ?'
+  ).get(user.sub) as { id: string; username: string; email: string | null; role: string; created_at: string } | undefined;
+
+  if (!row) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  res.json(row);
+});
+
+// POST /api/auth/change-password — change own password
+router.post('/change-password', requireAuth, async (req: Request, res: Response) => {
+  const user = (req as Request & { user?: AuthPayload }).user;
+  if (!user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+
+  const { currentPassword, newPassword } = req.body as {
+    currentPassword?: string;
+    newPassword?: string;
+  };
+
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: 'currentPassword and newPassword are required' });
+    return;
+  }
+
+  if (newPassword.length < 8) {
+    res.status(400).json({ error: 'newPassword must be at least 8 characters' });
+    return;
+  }
+
+  const row = db.prepare('SELECT password_hash FROM users WHERE id = ?').get(user.sub) as
+    | { password_hash: string }
+    | undefined;
+
+  if (!row) {
+    res.status(404).json({ error: 'User not found' });
+    return;
+  }
+
+  const match = await bcrypt.compare(currentPassword, row.password_hash);
+  if (!match) {
+    res.status(401).json({ error: 'Current password is incorrect' });
+    return;
+  }
+
+  const newHash = await bcrypt.hash(newPassword, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(newHash, user.sub);
+
+  res.json({ message: 'Password updated successfully' });
 });
 
 export default router;

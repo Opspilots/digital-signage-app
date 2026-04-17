@@ -27,7 +27,7 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
 
   const load = useCallback(() => {
     setLoading(true)
-    mediaApi.list().then(setFiles).catch((e) => setError(String(e))).finally(() => setLoading(false))
+    mediaApi.list().then((r) => setFiles(r.items)).catch((e) => setError(String(e))).finally(() => setLoading(false))
   }, [])
 
   useEffect(() => { load() }, [load])

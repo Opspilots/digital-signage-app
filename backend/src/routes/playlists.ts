@@ -29,10 +29,15 @@ function getItems(playlistId: string) {
   return rows.map(formatItem);
 }
 
-// GET /api/playlists — list all playlists
-router.get('/', (_req: Request, res: Response) => {
-  const rows = db.prepare('SELECT * FROM playlists ORDER BY created_at DESC').all();
-  res.json(rows);
+// GET /api/playlists — list playlists with pagination (excluding soft-deleted)
+router.get('/', (req: Request, res: Response) => {
+  const limit  = Math.max(1, parseInt(String(req.query.limit  ?? 50), 10) || 50);
+  const offset = Math.max(0, parseInt(String(req.query.offset ?? 0),  10) || 0);
+
+  const { total } = db.prepare('SELECT COUNT(*) AS total FROM playlists WHERE deleted_at IS NULL').get() as { total: number };
+  const rows = db.prepare('SELECT * FROM playlists WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT ? OFFSET ?').all(limit, offset);
+
+  res.json({ items: rows, total, limit, offset });
 });
 
 // POST /api/playlists — create playlist
@@ -56,10 +61,10 @@ router.post('/', (req: Request, res: Response) => {
   res.status(201).json(row);
 });
 
-// GET /api/playlists/:id — get playlist with items
+// GET /api/playlists/:id — get playlist with items (excluding soft-deleted)
 router.get('/:id', (req: Request, res: Response) => {
   const { id } = req.params;
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ?').get(id);
+  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND deleted_at IS NULL').get(id);
 
   if (!playlist) {
     res.status(404).json({ error: 'Playlist not found' });
@@ -73,7 +78,7 @@ router.get('/:id', (req: Request, res: Response) => {
 // PUT /api/playlists/:id — same handler (frontend uses PUT)
 function updatePlaylist(req: Request, res: Response) {
   const { id } = req.params;
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ?').get(id);
+  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND deleted_at IS NULL').get(id);
 
   if (!playlist) {
     res.status(404).json({ error: 'Playlist not found' });
@@ -113,7 +118,7 @@ router.put('/:id', updatePlaylist);
 // POST /api/playlists/:id/duplicate — clone playlist and all its items
 router.post('/:id/duplicate', (req: Request, res: Response) => {
   const { id } = req.params;
-  const source = db.prepare('SELECT * FROM playlists WHERE id = ?').get(id) as
+  const source = db.prepare('SELECT * FROM playlists WHERE id = ? AND deleted_at IS NULL').get(id) as
     | { title: string; description: string | null }
     | undefined;
 
@@ -163,25 +168,24 @@ router.post('/:id/duplicate', (req: Request, res: Response) => {
   res.status(201).json({ ...row as object, items: getItems(newId) });
 });
 
-// DELETE /api/playlists/:id — delete playlist and its items
+// DELETE /api/playlists/:id — soft-delete playlist
 router.delete('/:id', (req: Request, res: Response) => {
   const { id } = req.params;
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ?').get(id);
+  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND deleted_at IS NULL').get(id);
 
   if (!playlist) {
     res.status(404).json({ error: 'Playlist not found' });
     return;
   }
 
-  // Cascade delete is handled by FK constraint
-  db.prepare('DELETE FROM playlists WHERE id = ?').run(id);
+  db.prepare("UPDATE playlists SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?").run(id);
   res.status(204).send();
 });
 
 // POST /api/playlists/:id/items — add a single item
 router.post('/:id/items', (req: Request, res: Response) => {
   const { id } = req.params;
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ?').get(id);
+  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND deleted_at IS NULL').get(id);
 
   if (!playlist) {
     res.status(404).json({ error: 'Playlist not found' });
@@ -242,7 +246,7 @@ router.post('/:id/items', (req: Request, res: Response) => {
 // POST /api/playlists/:id/items/reorder — reorder items by ID list
 router.post('/:id/items/reorder', (req: Request, res: Response) => {
   const { id } = req.params;
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ?').get(id);
+  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND deleted_at IS NULL').get(id);
 
   if (!playlist) {
     res.status(404).json({ error: 'Playlist not found' });
@@ -273,7 +277,7 @@ router.post('/:id/items/reorder', (req: Request, res: Response) => {
 // PUT /api/playlists/:id/items — replace all items
 router.put('/:id/items', (req: Request, res: Response) => {
   const { id } = req.params;
-  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ?').get(id);
+  const playlist = db.prepare('SELECT * FROM playlists WHERE id = ? AND deleted_at IS NULL').get(id);
 
   if (!playlist) {
     res.status(404).json({ error: 'Playlist not found' });

@@ -60,7 +60,7 @@ export default function Screens() {
         prevOnline.current = new Map(s.map((sc) => [sc.id, !!sc.online]))
         firstLoad.current = false
         setScreens(s)
-        setPlaylists(p)
+        setPlaylists(p.items)
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))

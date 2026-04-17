@@ -3,10 +3,12 @@ import bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import db from '../db/schema';
 import { requireAdmin, AuthPayload } from '../middleware/auth';
+import { apiError } from '../utils/errors';
 
 const router = Router();
 
 const VALID_ROLES = ['admin', 'editor'];
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // GET /api/users
 router.get('/', (_req: Request, res: Response) => {
@@ -29,6 +31,14 @@ router.post('/', requireAdmin, (req: Request, res: Response) => {
   }
   if (!password || typeof password !== 'string' || password.length < 6) {
     res.status(400).json({ error: 'password must be at least 6 characters' });
+    return;
+  }
+  if (email !== undefined && email !== null && email !== '' && !EMAIL_REGEX.test(email)) {
+    apiError(res, 400, 'email format is invalid');
+    return;
+  }
+  if (role !== undefined && !VALID_ROLES.includes(role)) {
+    apiError(res, 400, `role must be one of: ${VALID_ROLES.join(', ')}`);
     return;
   }
 
@@ -70,6 +80,10 @@ router.patch('/:id', requireAdmin, (req: Request, res: Response) => {
   }
 
   if (email !== undefined) {
+    if (email !== null && email !== '' && !EMAIL_REGEX.test(email)) {
+      apiError(res, 400, 'email format is invalid');
+      return;
+    }
     db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email || null, id);
   }
 

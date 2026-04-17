@@ -14,7 +14,10 @@ import './db/schema';
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3001;
-const CORS_ORIGIN = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*';
+const corsOrigin = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',')
+  : (process.env.NODE_ENV === 'production' ? 'http://localhost' : '*');
+const CORS_ORIGIN = corsOrigin;
 
 app.use(cors({ origin: CORS_ORIGIN }));
 app.use(express.json());

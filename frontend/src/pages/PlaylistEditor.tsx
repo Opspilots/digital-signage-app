@@ -22,9 +22,10 @@ import type { Playlist, PlaylistItem } from '../api/types'
 import MediaLibrary from './MediaLibrary'
 import type { MediaFile } from '../api/types'
 import { useToast } from '../toast'
+import { DAYS, DAY_BITS, isDayActive } from '../utils/schedule'
 
+// Etiquetas cortas para el editor de ítems
 const DAY_LABELS = ['L', 'M', 'X', 'J', 'V', 'S', 'D']
-const DAY_BITS   = [1, 2, 4, 8, 16, 32, 64]
 
 function scheduleSummary(item: PlaylistItem): string {
   const mask = item.days_of_week ?? 0
@@ -34,7 +35,7 @@ function scheduleSummary(item: PlaylistItem): string {
     : mask === 31 ? 'L–V'
     : mask === 96 ? 'S–D'
     : mask === 0 ? 'Todos los días'
-    : DAY_LABELS.filter((_, i) => mask & DAY_BITS[i]).join(' ')
+    : DAY_LABELS.filter((_, i) => isDayActive(mask, i)).join(' ')
   const time = hasTime ? `${item.start_time ?? '00:00'}–${item.end_time ?? '23:59'}` : ''
   return [days, time].filter(Boolean).join(' · ')
 }
@@ -154,7 +155,7 @@ function SortableItem({
               <span style={{ fontSize: 11, color: 'var(--text2)', marginRight: 4 }}>Días:</span>
               {DAY_LABELS.map((label, i) => {
                 const bit = DAY_BITS[i]
-                const active = !!(mask & bit)
+                const active = isDayActive(mask, i)
                 return (
                   <button
                     key={label}

@@ -1,4 +1,4 @@
-import type { MediaFile, Playlist, PlaylistItem, Screen, Schedule, User } from './types'
+import type { MediaFile, Playlist, PlaylistItem, Screen, Schedule, User, PaginatedResponse, UserMe } from './types'
 import { getAccessToken, refresh, logout } from '../auth'
 
 export const BASE_URL = import.meta.env.VITE_API_URL ?? ''
@@ -49,9 +49,22 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+// Auth
+export const authApi = {
+  me: () => request<UserMe>('/api/auth/me'),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ message: string }>('/api/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+}
+
 // Media
 export const mediaApi = {
-  list: () => request<MediaFile[]>('/api/media'),
+  list: (params?: { limit?: number; offset?: number }) => {
+    const qs = params ? `?limit=${params.limit ?? 50}&offset=${params.offset ?? 0}` : ''
+    return request<PaginatedResponse<MediaFile>>(`/api/media${qs}`)
+  },
   upload: async (file: File) => {
     const form = new FormData()
     form.append('file', file)
@@ -88,7 +101,10 @@ export const mediaApi = {
 
 // Playlists
 export const playlistApi = {
-  list: () => request<Playlist[]>('/api/playlists'),
+  list: (params?: { limit?: number; offset?: number }) => {
+    const qs = params ? `?limit=${params.limit ?? 50}&offset=${params.offset ?? 0}` : ''
+    return request<PaginatedResponse<Playlist>>(`/api/playlists${qs}`)
+  },
   get: (id: string, screenToken?: string) => {
     const headers = screenToken ? { Authorization: `Bearer ${screenToken}` } : undefined
     return request<Playlist>(`/api/playlists/${id}`, { headers })

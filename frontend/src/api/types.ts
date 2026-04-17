@@ -1,3 +1,18 @@
+export interface PaginatedResponse<T> {
+  items: T[]
+  total: number
+  limit: number
+  offset: number
+}
+
+export interface UserMe {
+  id: string
+  username: string
+  email: string | null
+  role: string
+  created_at: string
+}
+
 export interface MediaFile {
   id: string
   filename: string

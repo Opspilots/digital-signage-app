@@ -79,10 +79,21 @@ db.exec(`
   );
 `);
 
+// Indexes for frequent queries
+db.exec(`
+  CREATE INDEX IF NOT EXISTS idx_playlist_items_playlist_id ON playlist_items(playlist_id);
+  CREATE INDEX IF NOT EXISTS idx_schedules_screen_id ON schedules(screen_id);
+  CREATE INDEX IF NOT EXISTS idx_screens_token ON screens(token);
+  CREATE INDEX IF NOT EXISTS idx_media_files_type ON media_files(mime_type);
+`);
+
 // Add thumbnail_path column if missing
 const mediaInfo = db.prepare('PRAGMA table_info(media_files)').all() as Array<{ name: string }>;
 if (!mediaInfo.some(col => col.name === 'thumbnail_path')) {
   db.exec('ALTER TABLE media_files ADD COLUMN thumbnail_path TEXT');
+}
+if (!mediaInfo.some(col => col.name === 'updated_at')) {
+  db.exec("ALTER TABLE media_files ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))");
 }
 
 // Add role and email columns to users if missing
@@ -118,6 +129,17 @@ if (!itemsInfo2.some(col => col.name === 'start_time')) {
 }
 if (!itemsInfo2.some(col => col.name === 'end_time')) {
   db.exec('ALTER TABLE playlist_items ADD COLUMN end_time TEXT');
+}
+
+// Soft-delete columns for playlists and media_files
+const playlistsInfo2 = db.prepare('PRAGMA table_info(playlists)').all() as Array<{ name: string }>;
+if (!playlistsInfo2.some(col => col.name === 'deleted_at')) {
+  db.exec('ALTER TABLE playlists ADD COLUMN deleted_at DATETIME DEFAULT NULL');
+}
+
+const mediaInfo2 = db.prepare('PRAGMA table_info(media_files)').all() as Array<{ name: string }>;
+if (!mediaInfo2.some(col => col.name === 'deleted_at')) {
+  db.exec('ALTER TABLE media_files ADD COLUMN deleted_at DATETIME DEFAULT NULL');
 }
 
 // Pairing code on screens (rotating short code vs permanent token)

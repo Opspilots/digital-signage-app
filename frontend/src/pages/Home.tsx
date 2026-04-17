@@ -31,7 +31,7 @@ export default function Home() {
   const load = () => {
     setLoading(true)
     Promise.all([playlistApi.list(), mediaApi.list(), screenApi.list()])
-      .then(([p, m, s]) => { setPlaylists(p); setMediaCount(m.length); setScreens(s as Screen[]) })
+      .then(([p, m, s]) => { setPlaylists(p.items); setMediaCount(m.total); setScreens(s as Screen[]) })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }

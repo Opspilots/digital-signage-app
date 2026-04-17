@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { playlistApi, screenApi, BASE_URL } from '../api/client'
 import type { Playlist, PlaylistItem } from '../api/types'
+import { jsDowToBit } from '../utils/schedule'
 
 const HEARTBEAT_INTERVAL_MS = 30_000
 const HUD_TIMEOUT_MS        = 3000
@@ -10,8 +11,7 @@ const SCHEDULE_CHECK_MS     = 30_000
 function isItemActiveNow(item: PlaylistItem, now: Date): boolean {
   const mask = item.days_of_week ?? 0
   if (mask !== 0) {
-    const jsDow = now.getDay()          // 0=Sun
-    const dowBit = jsDow === 0 ? 64 : (1 << (jsDow - 1))
+    const dowBit = jsDowToBit(now.getDay())
     if ((mask & dowBit) === 0) return false
   }
   const toMin = (t?: string | null) => {
@@ -150,13 +150,13 @@ export default function PlaylistPlayer() {
 
     if (timerRef.current) clearTimeout(timerRef.current)
 
-    const isVideo = item.media_file?.mime_type.startsWith('video/')
-    if (!isVideo) {
-      // Images and other non-video items: advance after display_duration
+    const isVideoOrAudio = item.media_file?.mime_type.startsWith('video/') || item.media_file?.mime_type.startsWith('audio/')
+    if (!isVideoOrAudio) {
+      // Images and other non-video/audio items: advance after display_duration
       scheduleAdvance(item.display_duration)
     }
-    // For video items the timer is set in onLoadedMetadata using Math.max(display_duration, videoDuration).
-    // onEnded also advances immediately when the video finishes naturally.
+    // For video/audio items the timer is set in onLoadedMetadata using Math.max(display_duration, mediaDuration).
+    // onEnded also advances immediately when the media finishes naturally.
 
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
@@ -251,6 +251,7 @@ export default function PlaylistPlayer() {
 
   const currentItem = activeItems[currentIndex] ?? activeItems[0]
   const isVideo = currentItem.media_file?.mime_type.startsWith('video/')
+  const isAudio = currentItem.media_file?.mime_type.startsWith('audio/')
   const transitionType = currentItem.transition_type
   const transDuration = currentItem.transition_duration
 
@@ -313,6 +314,35 @@ export default function PlaylistPlayer() {
           onEnded={() => goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0)}
           onError={() => { setMediaLoading(false); goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0) }}
         />
+      ) : isAudio ? (
+        <div
+          key={`${transitionKey}-audio`}
+          className={`flex flex-col items-center justify-center gap-6 w-full h-full px-8 ${animationClass}`}
+          style={animationStyle}
+        >
+          {/* Music icon */}
+          <svg width="96" height="96" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 18V5l12-2v13"/>
+            <circle cx="6" cy="18" r="3"/>
+            <circle cx="18" cy="16" r="3"/>
+          </svg>
+          <p className="text-white text-lg font-medium text-center truncate max-w-md" style={{ color: 'rgba(255,255,255,0.85)' }}>
+            {currentItem.media_file?.original_name ?? ''}
+          </p>
+          <audio
+            autoPlay
+            muted={muted}
+            src={currentItem.media_file ? `${BASE_URL}${currentItem.media_file.url}` : ''}
+            onLoadedData={() => setMediaLoading(false)}
+            onLoadedMetadata={(e) => {
+              const audioDuration = (e.target as HTMLAudioElement).duration
+              const effectiveDuration = Math.max(currentItem.display_duration, isFinite(audioDuration) ? audioDuration : 0)
+              scheduleAdvance(effectiveDuration)
+            }}
+            onEnded={() => goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0)}
+            onError={() => { setMediaLoading(false); goTo(currentIndex + 1 < activeItems.length ? currentIndex + 1 : 0) }}
+          />
+        </div>
       ) : (
         <img
           key={`${transitionKey}-img`}
@@ -411,7 +441,7 @@ export default function PlaylistPlayer() {
           </div>
 
           <div className="flex items-center gap-2 pointer-events-auto">
-            {isVideo && (
+            {(isVideo || isAudio) && (
               <>
                 <button
                   onClick={() => setMuted((m) => !m)}

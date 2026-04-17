@@ -127,3 +127,16 @@ export async function refresh(): Promise<void> {
 export function logout(): void {
   setTokens(null, null)
 }
+
+/**
+ * Fetches fresh user data from the server (/api/auth/me).
+ * Useful to get fields like email or created_at that are not stored in the JWT.
+ */
+export async function fetchMe(): Promise<{ id: string; username: string; email: string | null; role: string; created_at: string }> {
+  if (!accessToken) throw new Error('Not authenticated')
+  const res = await fetch(`${BASE_URL}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!res.ok) throw new Error('Failed to fetch user profile')
+  return res.json() as Promise<{ id: string; username: string; email: string | null; role: string; created_at: string }>
+}
