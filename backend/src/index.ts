@@ -23,22 +23,19 @@ const corsOrigin = process.env.CORS_ORIGIN
 const CORS_ORIGIN = corsOrigin;
 
 app.use(cors({ origin: CORS_ORIGIN }));
-app.use(express.json());
 
-// Serve uploaded media files as static assets
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
-// GitHub webhook — auto deploy on push to master
+// GitHub webhook — registered BEFORE express.json() so raw body is available for HMAC
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
 const DEPLOY_SCRIPT = path.join(__dirname, '../../scripts/deploy.sh');
-app.post('/webhook/github', express.raw({ type: 'application/json' }), (req, res) => {
+app.post('/webhook/github', express.raw({ type: '*/*' }), (req, res) => {
   if (!WEBHOOK_SECRET) { res.status(503).json({ error: 'Webhook not configured' }); return; }
   const sig = req.headers['x-hub-signature-256'] as string | undefined;
-  const expected = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET).update(req.body).digest('hex');
-  if (!sig || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
+  const body = Buffer.isBuffer(req.body) ? req.body : Buffer.from(JSON.stringify(req.body));
+  const expected = 'sha256=' + crypto.createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex');
+  if (!sig || sig.length !== expected.length || !crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) {
     res.status(401).json({ error: 'Invalid signature' }); return;
   }
-  const payload = JSON.parse(req.body.toString());
+  const payload = JSON.parse(body.toString()) as { ref?: string };
   if (payload.ref !== 'refs/heads/master') { res.json({ skipped: true }); return; }
   logger.info('GitHub webhook: deploying...');
   res.json({ ok: true, message: 'Deploy started' });
@@ -47,6 +44,8 @@ app.post('/webhook/github', express.raw({ type: 'application/json' }), (req, res
     else logger.info({ stdout }, 'Deploy completed');
   });
 });
+
+app.use(express.json());
 
 // Public routes (no auth required)
 app.use('/api/auth', authRouter);
