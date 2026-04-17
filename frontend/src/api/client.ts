@@ -149,10 +149,10 @@ export const playlistApi = {
 
 // Screens
 export const screenApi = {
-  list: () => request<Screen[]>('/api/screens').then((data) => {
-    const parsed = ScreenSchema.array().safeParse(data)
+  list: () => request<PaginatedResponse<Screen>>('/api/screens').then((data) => {
+    const parsed = ScreenSchema.array().safeParse(data.items)
     if (!parsed.success) console.warn('API schema mismatch [screen.list]:', parsed.error)
-    return parsed.success ? (parsed.data as Screen[]) : data
+    return parsed.success ? { ...data, items: parsed.data as Screen[] } : data
   }),
   get: (id: string) => request<Screen>(`/api/screens/${id}`),
   create: (data: { name: string; location?: string }) =>

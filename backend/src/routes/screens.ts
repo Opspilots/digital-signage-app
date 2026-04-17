@@ -34,7 +34,8 @@ router.get('/', (_req: Request, res: Response) => {
   const rows = db.prepare(
     'SELECT * FROM screens WHERE pairing_code IS NULL ORDER BY created_at DESC'
   ).all() as Array<Record<string, unknown>>;
-  res.json(rows.map(formatScreen));
+  const items = rows.map(formatScreen);
+  res.json({ items, total: items.length, limit: items.length, offset: 0 });
 });
 
 // POST /api/screens — register new screen

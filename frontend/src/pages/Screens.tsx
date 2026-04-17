@@ -52,7 +52,7 @@ export default function Screens() {
     Promise.all([screenApi.list(), playlistApi.list()])
       .then(([s, p]) => {
         if (!firstLoad.current) {
-          s.forEach((screen) => {
+          s.items.forEach((screen) => {
             const wasOnline = prevOnline.current.get(screen.id)
             if (wasOnline === true && !screen.online) {
               toast.warn(`"${screen.name}" se ha desconectado`)
@@ -61,9 +61,9 @@ export default function Screens() {
             }
           })
         }
-        prevOnline.current = new Map(s.map((sc) => [sc.id, !!sc.online]))
+        prevOnline.current = new Map(s.items.map((sc) => [sc.id, !!sc.online]))
         firstLoad.current = false
-        setScreens(s)
+        setScreens(s.items)
         setPlaylists(p.items)
       })
       .catch((e) => setError(String(e)))
