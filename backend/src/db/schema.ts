@@ -94,7 +94,7 @@ if (!mediaInfo.some(col => col.name === 'thumbnail_path')) {
   db.exec('ALTER TABLE media_files ADD COLUMN thumbnail_path TEXT');
 }
 if (!mediaInfo.some(col => col.name === 'updated_at')) {
-  db.exec("ALTER TABLE media_files ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'))");
+  db.exec('ALTER TABLE media_files ADD COLUMN updated_at TEXT DEFAULT NULL');
 }
 
 // Add role and email columns to users if missing
