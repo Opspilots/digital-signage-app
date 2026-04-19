@@ -184,6 +184,18 @@ export default function PlaylistPlayer() {
     }
   }, [currentIndex, activeItems, scheduleAdvance])
 
+  // Preload the next image so it appears instantly when the timer fires
+  useEffect(() => {
+    if (activeItems.length < 2) return
+    const nextIndex = (currentIndex + 1) % activeItems.length
+    const nextItem = activeItems[nextIndex]
+    if (nextItem?.media_file && nextItem.media_file.mime_type.startsWith('image/')) {
+      const img = new Image()
+      img.src = `${BASE_URL}${nextItem.media_file.url}`
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, activeItems])
+
   const toggleFullscreen = useCallback(async () => {
     try {
       if (!document.fullscreenElement) {
@@ -372,8 +384,12 @@ export default function PlaylistPlayer() {
           alt={currentItem.media_file?.original_name ?? ''}
           className={`max-w-full max-h-screen object-contain ${animationClass}`}
           style={animationStyle}
+          onLoadStart={() => setMediaLoading(true)}
           onLoad={() => setMediaLoading(false)}
-          onError={() => setMediaLoading(false)}
+          onError={() => {
+            setMediaLoading(false)
+            if (activeItems.length > 1) goTo((currentIndex + 1) % activeItems.length)
+          }}
         />
       )}
 
