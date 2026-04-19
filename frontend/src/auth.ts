@@ -20,6 +20,7 @@ if (authChannel) {
   authChannel.onmessage = (e: MessageEvent) => {
     if (e.data?.type === 'token' && typeof e.data.accessToken === 'string') {
       accessToken = e.data.accessToken
+      scheduleRefresh(e.data.accessToken)
       notify()
     } else if (e.data?.type === 'logout') {
       accessToken = null

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import crypto from 'crypto';
 import rateLimit from 'express-rate-limit';
 import db from '../db/schema';
 import { timeToMinutes } from './schedules';
@@ -85,18 +86,11 @@ router.post('/pair/claim', (req: Request, res: Response) => {
   const now = new Date();
 
   const screen = db.prepare(
-    'SELECT * FROM screens WHERE pairing_code = ?'
+    "SELECT * FROM screens WHERE pairing_code = ? AND pairing_expires_at > datetime('now')"
   ).get(normalized) as Record<string, unknown> | undefined;
 
   if (!screen) {
     res.status(404).json({ error: 'Código no válido o caducado' });
-    return;
-  }
-
-  const expiresAt = screen.pairing_expires_at as string | null;
-  if (expiresAt && new Date(expiresAt) < now) {
-    db.prepare('DELETE FROM screens WHERE id = ?').run(screen.id);
-    res.status(410).json({ error: 'Código caducado. Solicita uno nuevo en la pantalla.' });
     return;
   }
 
@@ -212,10 +206,12 @@ export const screensPublicRouter = PublicRouter();
 const PAIRING_TTL_MS = 15 * 60 * 1000; // 15 minutes
 
 function generatePairingCode(): string {
-  // 6 chars, avoid ambiguous (O/0, I/1)
+  // 6 chars, avoid ambiguous (O/0, I/1) — use crypto for randomness
   const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const alphabetLen = alphabet.length;
   let code = '';
-  for (let i = 0; i < 6; i++) code += alphabet[Math.floor(Math.random() * alphabet.length)];
+  const bytes = crypto.randomBytes(6);
+  for (let i = 0; i < 6; i++) code += alphabet[bytes[i] % alphabetLen];
   return code;
 }
 

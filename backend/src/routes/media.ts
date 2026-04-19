@@ -130,25 +130,35 @@ function formatMediaFile(row: Record<string, unknown>) {
 }
 
 // Magic byte signatures for allowed MIME types
-const MAGIC_BYTES: Record<string, Buffer[]> = {
-  'video/mp4': [
-    Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70]),
-    Buffer.from([0x00, 0x00, 0x00, 0x20, 0x66, 0x74, 0x79, 0x70]),
-  ],
-  'image/jpeg': [Buffer.from([0xFF, 0xD8, 0xFF])],
-  'image/png':  [Buffer.from([0x89, 0x50, 0x4E, 0x47])],
-  'image/gif':  [Buffer.from([0x47, 0x49, 0x46, 0x38])],
-  'video/webm': [Buffer.from([0x1A, 0x45, 0xDF, 0xA3])],
+// For MP4: bytes[4..7] must be 'ftyp' (standard ISO base media file format box)
+const MAGIC_BYTES: Record<string, { offset: number; signatures: Buffer[] }> = {
+  'video/mp4': {
+    offset: 4,
+    signatures: [Buffer.from('ftyp', 'ascii')],
+  },
+  'image/jpeg': { offset: 0, signatures: [Buffer.from([0xFF, 0xD8, 0xFF])] },
+  'image/png':  { offset: 0, signatures: [Buffer.from([0x89, 0x50, 0x4E, 0x47])] },
+  'image/gif':  { offset: 0, signatures: [Buffer.from([0x47, 0x49, 0x46, 0x38])] },
+  'video/webm': { offset: 0, signatures: [Buffer.from([0x1A, 0x45, 0xDF, 0xA3])] },
 };
 
-function validateMagicBytes(filePath: string, mimeType: string): boolean {
-  const signatures = MAGIC_BYTES[mimeType];
-  if (!signatures) return true; // tipo no mapeado, acepta
-  const fd = fs.openSync(filePath, 'r');
-  const buf = Buffer.alloc(8);
-  fs.readSync(fd, buf, 0, 8, 0);
-  fs.closeSync(fd);
-  return signatures.some((sig) => buf.subarray(0, sig.length).equals(sig));
+async function validateMagicBytes(filePath: string, mimeType: string): Promise<boolean> {
+  const entry = MAGIC_BYTES[mimeType];
+  if (!entry) return true; // tipo no mapeado, acepta
+  try {
+    const fh = await fs.promises.open(filePath, 'r');
+    try {
+      const buf = Buffer.alloc(12);
+      await fh.read(buf, 0, 12, 0);
+      return entry.signatures.some((sig) =>
+        buf.subarray(entry.offset, entry.offset + sig.length).equals(sig)
+      );
+    } finally {
+      await fh.close();
+    }
+  } catch {
+    return false;
+  }
 }
 
 // POST /api/media — upload a file
@@ -170,7 +180,7 @@ router.post('/', (req: Request, res: Response, next: NextFunction) => {
   const filePath = path.join(UPLOADS_DIR, file.filename);
 
   // Validate magic bytes match the declared MIME type
-  if (!validateMagicBytes(filePath, file.mimetype)) {
+  if (!await validateMagicBytes(filePath, file.mimetype)) {
     fs.unlinkSync(filePath);
     res.status(400).json({ error: `El contenido del archivo no coincide con el tipo declarado (${file.mimetype})` });
     return;

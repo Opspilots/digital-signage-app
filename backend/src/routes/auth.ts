@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { randomUUID } from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import db from '../db/schema';
@@ -18,7 +19,7 @@ interface UserRow {
 }
 
 // POST /api/auth/login
-router.post('/login', (req: Request, res: Response) => {
+router.post('/login', async (req: Request, res: Response) => {
   const { username, password } = req.body as { username?: string; password?: string };
 
   if (!username || !password) {
@@ -27,7 +28,13 @@ router.post('/login', (req: Request, res: Response) => {
   }
 
   const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as UserRow | undefined;
-  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+  if (!user) {
+    res.status(401).json({ error: 'Invalid credentials' });
+    return;
+  }
+
+  const match = await bcrypt.compare(password, user.password_hash);
+  if (!match) {
     res.status(401).json({ error: 'Invalid credentials' });
     return;
   }
@@ -82,7 +89,7 @@ router.post('/refresh', (req: Request, res: Response) => {
     const newRefreshToken = jwt.sign(
       { ...basePayload, type: 'refresh' },
       JWT_SECRET,
-      { expiresIn: JWT_REFRESH_TTL, jwtid: crypto.randomUUID() }
+      { expiresIn: JWT_REFRESH_TTL, jwtid: randomUUID() }
     );
 
     if (jti) revokedRefreshJtis.add(jti);

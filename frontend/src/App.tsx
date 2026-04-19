@@ -10,6 +10,7 @@ import ScreenSchedules from './pages/ScreenSchedules'
 import Login from './pages/Login'
 import { ToastProvider } from './toast'
 import { isAuthenticated, onAuthChange, refresh, logout, getCurrentUser } from './auth'
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
   const location  = useLocation()
@@ -227,6 +228,7 @@ function AppLayout() {
 
 export default function App() {
   return (
+    <ErrorBoundary>
     <ToastProvider>
     <BrowserRouter>
       <Routes>
@@ -245,5 +247,6 @@ export default function App() {
       </Routes>
     </BrowserRouter>
     </ToastProvider>
+    </ErrorBoundary>
   )
 }

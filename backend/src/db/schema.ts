@@ -203,6 +203,10 @@ if (!screensInfo.some(col => col.name === 'pairing_expires_at')) {
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin';
 
+if (ADMIN_PASSWORD === 'admin') {
+  console.warn('[SECURITY WARNING] ADMIN_PASSWORD is set to the default value "admin". Set a strong password in .env before production use.');
+}
+
 const existingAdmin = db.prepare('SELECT id FROM users WHERE username = ?').get(ADMIN_USERNAME);
 if (!existingAdmin) {
   const hash = bcrypt.hashSync(ADMIN_PASSWORD, 12);

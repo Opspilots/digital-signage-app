@@ -24,6 +24,7 @@ export default function PairingScreen() {
   const [claimed, setClaimed]   = useState(false)
   const [screenName, setScreenName] = useState<string | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const inFlightRef = useRef(false)
 
   const requestCode = useCallback(() => {
     setError(null)
@@ -52,15 +53,20 @@ export default function PairingScreen() {
   // polling for claim
   useEffect(() => {
     if (!token || claimed) return
-    const poll = () => {
-      screenApi.pairStatus(token)
-        .then((s) => {
-          if (s.claimed) {
-            setClaimed(true)
-            setScreenName(s.name)
-          }
-        })
-        .catch(() => { /* ignore transient errors */ })
+    const poll = async () => {
+      if (inFlightRef.current) return
+      inFlightRef.current = true
+      try {
+        const s = await screenApi.pairStatus(token)
+        if (s.claimed) {
+          setClaimed(true)
+          setScreenName(s.name)
+        }
+      } catch {
+        /* ignore transient errors */
+      } finally {
+        inFlightRef.current = false
+      }
     }
     poll()
     pollRef.current = setInterval(poll, POLL_MS)

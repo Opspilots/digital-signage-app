@@ -23,7 +23,9 @@ type BluetoothNavigator = Navigator & { bluetooth?: any }
 
 export function useBluetooth(): UseBluetoothReturn {
   const isSupported =
-    typeof navigator !== 'undefined' && 'bluetooth' in (navigator as BluetoothNavigator)
+    typeof navigator !== 'undefined' &&
+    'bluetooth' in (navigator as BluetoothNavigator) &&
+    (window.isSecureContext || window.location.hostname === 'localhost')
 
   const [isScanning, setIsScanning] = useState(false)
   const [devices, setDevices] = useState<DiscoveredDevice[]>([])
@@ -43,7 +45,7 @@ export function useBluetooth(): UseBluetoothReturn {
   const refreshPaired = useCallback(async () => {
     if (!isSupported) return
     const bt = (navigator as BluetoothNavigator).bluetooth
-    if (typeof bt.getDevices !== 'function') return
+    if (typeof bt?.getDevices !== 'function') return
     try {
       const paired = await bt.getDevices()
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

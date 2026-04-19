@@ -24,6 +24,9 @@ export default function ConfirmModal({
       onClick={onCancel}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-modal-title"
         className="ds-card w-full max-w-sm animate-slide-up"
         onClick={(e) => e.stopPropagation()}
       >
@@ -32,7 +35,7 @@ export default function ConfirmModal({
           className="flex items-center justify-between px-5 py-3"
           style={{ borderBottom: '1px solid var(--border)' }}
         >
-          <h3 className="font-display font-600" style={{ color: 'var(--text1)' }}>
+          <h3 id="confirm-modal-title" className="font-display font-600" style={{ color: 'var(--text1)' }}>
             {title}
           </h3>
           <button

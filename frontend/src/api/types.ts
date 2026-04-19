@@ -42,7 +42,7 @@ export type TransitionType =
 export interface PlaylistItem {
   id: string
   playlist_id: string
-  media_file_id: string
+  media_file_id: string | null
   position: number
   display_duration: number
   transition_type: TransitionType

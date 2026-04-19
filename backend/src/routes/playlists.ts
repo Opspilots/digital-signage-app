@@ -524,9 +524,14 @@ function updateItem(req: Request, res: Response) {
   const row = db.prepare(`
     SELECT pi.*, mf.filename, mf.original_name, mf.mime_type, mf.size_bytes, mf.duration_seconds
     FROM playlist_items pi
-    JOIN media_files mf ON mf.id = pi.media_file_id
+    LEFT JOIN media_files mf ON mf.id = pi.media_file_id
     WHERE pi.id = ?
-  `).get(itemId) as Record<string, unknown>;
+  `).get(itemId) as Record<string, unknown> | undefined;
+
+  if (!row) {
+    res.status(404).json({ error: 'Playlist item not found after update' });
+    return;
+  }
 
   res.json(formatItem(row));
 }

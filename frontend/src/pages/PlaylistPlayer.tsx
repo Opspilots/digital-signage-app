@@ -86,6 +86,7 @@ export default function PlaylistPlayer() {
     }
 
     const sendHeartbeat = () => {
+      if (heartbeatRef.current) clearTimeout(heartbeatRef.current)
       screenApi.heartbeat(screenToken)
         .then((data) => {
           if (cancelled) return
@@ -105,11 +106,29 @@ export default function PlaylistPlayer() {
         })
     }
 
+    const handleOnline = () => {
+      heartbeatFailsRef.current = 0
+      setNetworkOk(true)
+      if (heartbeatRef.current) clearTimeout(heartbeatRef.current)
+      sendHeartbeat()
+    }
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        sendHeartbeat()
+      }
+    }
+
+    window.addEventListener('online', handleOnline)
+    document.addEventListener('visibilitychange', handleVisibility)
+
     sendHeartbeat()
 
     return () => {
       cancelled = true
       if (heartbeatRef.current) clearTimeout(heartbeatRef.current)
+      window.removeEventListener('online', handleOnline)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenToken])
@@ -127,6 +146,8 @@ export default function PlaylistPlayer() {
   }, [])
 
   const activeItems = items.filter((it) => isItemActiveNow(it, nowTick))
+  const activeItemsRef = useRef(activeItems)
+  useEffect(() => { activeItemsRef.current = activeItems }, [activeItems])
 
   useEffect(() => {
     if (currentIndex >= activeItems.length) setCurrentIndex(0)
@@ -136,12 +157,12 @@ export default function PlaylistPlayer() {
     if (timerRef.current) clearTimeout(timerRef.current)
     timerRef.current = setTimeout(() => {
       setCurrentIndex((prev) => {
-        const next = prev + 1 < activeItems.length ? prev + 1 : 0
+        const next = prev + 1 < activeItemsRef.current.length ? prev + 1 : 0
         setTransitionKey((k) => k + 1)
         return next
       })
     }, durationSec * 1000)
-  }, [activeItems.length])
+  }, [])
 
   useEffect(() => {
     if (activeItems.length === 0) return
@@ -161,7 +182,7 @@ export default function PlaylistPlayer() {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current)
     }
-  }, [currentIndex, activeItems, goTo, scheduleAdvance])
+  }, [currentIndex, activeItems, scheduleAdvance])
 
   const toggleFullscreen = useCallback(async () => {
     try {
@@ -304,6 +325,7 @@ export default function PlaylistPlayer() {
           autoPlay
           muted={muted}
           playsInline
+          preload="auto"
           onLoadedData={() => setMediaLoading(false)}
           onLoadedMetadata={(e) => {
             // Respect the longer of the configured duration and the actual video length

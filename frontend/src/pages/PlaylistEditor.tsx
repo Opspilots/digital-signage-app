@@ -238,6 +238,7 @@ export default function PlaylistEditor() {
         setTitleDraft(p.title)
         setDescDraft(p.description ?? '')
         setItems(p.items ?? [])
+        setError(null)
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
@@ -459,7 +460,7 @@ export default function PlaylistEditor() {
             </button>
           </div>
           <div style={{ maxHeight: 380, overflowY: 'auto', background: 'var(--surface2)' }}>
-            <MediaLibrary selectionMode selectedIds={new Set(items.map((i) => i.media_file_id))} onSelect={handleMediaSelect} />
+            <MediaLibrary selectionMode selectedIds={new Set(items.map((i) => i.media_file_id).filter((id): id is string => id !== null))} onSelect={handleMediaSelect} />
           </div>
         </div>
       )}

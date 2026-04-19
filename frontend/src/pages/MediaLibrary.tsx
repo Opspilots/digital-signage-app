@@ -38,8 +38,6 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
     setMaxSize('')
   }
 
-  const filteredFiles = files
-
   const load = useCallback(() => {
     setLoading(true)
     const params: Parameters<typeof mediaApi.list>[0] = { limit: 200, offset: 0 }
@@ -48,7 +46,7 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
     if (minSize !== '') params.minSize = Number(minSize)
     if (maxSize !== '') params.maxSize = Number(maxSize)
     mediaApi.list(params)
-      .then((r) => { setFiles(r.items); setTotal(r.total) })
+      .then((r) => { setFiles(r.items); setTotal(r.total); setError(null) })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))
   }, [search, typeFilter, minSize, maxSize])
@@ -58,11 +56,19 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
   const uploadFiles = async (filesToUpload: File[]) => {
     setUploading(true)
     try {
-      const uploaded = await Promise.all(filesToUpload.map((f) => mediaApi.upload(f)))
-      setFiles((prev) => [...uploaded, ...prev])
-      if (!selectionMode) toast.success(`${uploaded.length} archivo${uploaded.length !== 1 ? 's' : ''} subido${uploaded.length !== 1 ? 's' : ''}`)
-    } catch (e) { setError(String(e)) }
-    finally { setUploading(false) }
+      const results = await Promise.allSettled(filesToUpload.map((f) => mediaApi.upload(f)))
+      const uploaded = results
+        .filter((r): r is PromiseFulfilledResult<MediaFile> => r.status === 'fulfilled')
+        .map((r) => r.value)
+      const failed = results.filter((r) => r.status === 'rejected').length
+      if (uploaded.length > 0) {
+        setFiles((prev) => [...uploaded, ...prev])
+        if (!selectionMode) toast.success(`${uploaded.length} archivo${uploaded.length !== 1 ? 's' : ''} subido${uploaded.length !== 1 ? 's' : ''}`)
+      }
+      if (failed > 0) {
+        setError(`${failed} archivo${failed !== 1 ? 's' : ''} no se pudo${failed !== 1 ? 'ron' : ''} subir`)
+      }
+    } finally { setUploading(false) }
   }
 
   const toggleMultiSel = (id: string) => {
@@ -257,7 +263,7 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
       >
-        <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileInput} />
+        <input ref={fileInputRef} type="file" accept="image/*,video/*,audio/*" multiple className="hidden" onChange={handleFileInput} />
         <div className="flex flex-col items-center gap-2">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: dragOver ? 'var(--cyan)' : 'var(--text2)' }}>
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -290,13 +296,13 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
         </div>
       ) : files.length === 0 && !hasFilters ? (
         <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>Aún no hay archivos.</div>
-      ) : filteredFiles.length === 0 ? (
+      ) : files.length === 0 ? (
         <div className="text-center py-12 text-sm" style={{ color: 'var(--text2)' }}>
           Sin resultados{search ? ` para "${search}"` : ''}{hasFilters ? ' con los filtros aplicados' : ''}.
         </div>
       ) : (
         <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 ${selectionMode ? 'px-4 pb-4' : ''}`}>
-          {filteredFiles.map((file) => {
+          {files.map((file) => {
             const selected = selectedIds?.has(file.id)
             const checked  = multiSel.has(file.id)
             const onCardClick = () => {

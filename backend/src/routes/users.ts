@@ -11,13 +11,13 @@ const VALID_ROLES = ['admin', 'editor'];
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // GET /api/users
-router.get('/', (_req: Request, res: Response) => {
+router.get('/', requireAdmin, (_req: Request, res: Response) => {
   const users = db.prepare('SELECT id, username, role, email, created_at FROM users ORDER BY created_at ASC').all();
   res.json(users);
 });
 
 // POST /api/users
-router.post('/', requireAdmin, (req: Request, res: Response) => {
+router.post('/', requireAdmin, async (req: Request, res: Response) => {
   const { username, password, role, email } = req.body as {
     username?: string;
     password?: string;
@@ -29,8 +29,8 @@ router.post('/', requireAdmin, (req: Request, res: Response) => {
     res.status(400).json({ error: 'username is required' });
     return;
   }
-  if (!password || typeof password !== 'string' || password.length < 6) {
-    res.status(400).json({ error: 'password must be at least 6 characters' });
+  if (!password || typeof password !== 'string' || password.length < 8) {
+    res.status(400).json({ error: 'password must be at least 8 characters' });
     return;
   }
   if (email !== undefined && email !== null && email !== '' && !EMAIL_REGEX.test(email)) {
@@ -51,7 +51,7 @@ router.post('/', requireAdmin, (req: Request, res: Response) => {
   }
 
   const id = uuidv4();
-  const hash = bcrypt.hashSync(password, 12);
+  const hash = await bcrypt.hash(password, 12);
   db.prepare('INSERT INTO users (id, username, password_hash, role, email) VALUES (?, ?, ?, ?, ?)').run(
     id, username.trim(), hash, resolvedRole, email ?? null
   );
@@ -61,7 +61,7 @@ router.post('/', requireAdmin, (req: Request, res: Response) => {
 });
 
 // PATCH /api/users/:id
-router.patch('/:id', requireAdmin, (req: Request, res: Response) => {
+router.patch('/:id', requireAdmin, async (req: Request, res: Response) => {
   const { id } = req.params;
   const { role, email, password } = req.body as { role?: string; email?: string; password?: string };
 
@@ -88,11 +88,11 @@ router.patch('/:id', requireAdmin, (req: Request, res: Response) => {
   }
 
   if (password) {
-    if (password.length < 6) {
-      res.status(400).json({ error: 'password must be at least 6 characters' });
+    if (password.length < 8) {
+      res.status(400).json({ error: 'password must be at least 8 characters' });
       return;
     }
-    const hash = bcrypt.hashSync(password, 12);
+    const hash = await bcrypt.hash(password, 12);
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hash, id);
   }
 

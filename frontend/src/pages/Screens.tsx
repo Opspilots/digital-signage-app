@@ -65,6 +65,7 @@ export default function Screens() {
         firstLoad.current = false
         setScreens(s.items)
         setPlaylists(p.items)
+        setError(null)
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false))

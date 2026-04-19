@@ -3,6 +3,11 @@ import jwt from 'jsonwebtoken';
 import db from '../db/schema';
 
 export const JWT_SECRET = process.env.JWT_SECRET ?? 'change-me-in-production';
+
+if (process.env.JWT_SECRET === 'change-me-in-production' || !process.env.JWT_SECRET) {
+  console.warn('[SECURITY WARNING] JWT_SECRET is not set or uses default value. Set a strong secret in .env before production use.');
+}
+
 export const JWT_ACCESS_TTL = '15m';
 export const JWT_REFRESH_TTL = '7d';
 
