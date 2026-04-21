@@ -17,7 +17,7 @@ ffmpeg.setFfprobePath(ffprobeInstaller.path);
 
 const router = Router();
 
-const UPLOADS_DIR = path.join(__dirname, '../../uploads');
+const UPLOADS_DIR = path.join(__dirname, '../../../uploads');
 const THUMBNAILS_DIR = path.join(UPLOADS_DIR, 'thumbnails');
 
 if (!fs.existsSync(UPLOADS_DIR)) {

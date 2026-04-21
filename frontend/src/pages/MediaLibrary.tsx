@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { mediaApi } from '../api/client'
+import { mediaApi, BASE_URL } from '../api/client'
 import type { MediaFile } from '../api/types'
 import { useToast } from '../toast'
 import ConfirmModal from '../components/ConfirmModal'
@@ -26,7 +26,6 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
   const [confirmSingleId,  setConfirmSingleId]  = useState<string | null>(null)
   const [confirmBulkPending, setConfirmBulkPending] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const BASE_URL = import.meta.env.VITE_API_URL ?? ''
   const toast = useToast()
 
   const hasFilters = !!(search.trim() || typeFilter || minSize || maxSize)
@@ -107,7 +106,7 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
     e.preventDefault()
     setDragOver(false)
     const dropped = Array.from(e.dataTransfer.files).filter(
-      (f) => f.type.startsWith('image/') || f.type.startsWith('video/')
+      (f) => f.type.startsWith('image/') || f.type.startsWith('video/') || f.type.startsWith('audio/')
     )
     if (dropped.length) uploadFiles(dropped)
   }
@@ -141,6 +140,7 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
   }
 
   const isVideo = (f: MediaFile) => f.mime_type.startsWith('video/')
+  const isAudio = (f: MediaFile) => f.mime_type.startsWith('audio/')
 
   const ext = (f: MediaFile) => {
     const parts = f.original_name.split('.')
@@ -324,20 +324,48 @@ export default function MediaLibrary({ selectionMode, selectedIds, onSelect }: P
               >
                 {/* Thumbnail */}
                 <div className="aspect-video relative overflow-hidden" style={{ background: 'var(--surface2)' }}>
-                  <img
-                    src={`${BASE_URL}${file.thumbnail_url ?? file.url}`}
-                    alt={file.original_name}
-                    className="w-full h-full object-cover"
-                  />
+                  {isAudio(file) ? (
+                    <div className="w-full h-full flex items-center justify-center" style={{ background: 'var(--surface3)' }}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text3)' }}>
+                        <path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+                      </svg>
+                    </div>
+                  ) : isVideo(file) && !file.thumbnail_url ? (
+                    <div className="w-full h-full flex items-center justify-center" style={{ background: 'var(--surface3)' }}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text3)' }}>
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                      </svg>
+                    </div>
+                  ) : (
+                    <img
+                      src={`${BASE_URL}${file.thumbnail_url ?? file.url}`}
+                      alt={file.original_name}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const img = e.currentTarget
+                        img.style.display = 'none'
+                        const fallback = img.nextElementSibling as HTMLElement | null
+                        if (fallback) fallback.style.display = 'flex'
+                      }}
+                    />
+                  )}
+                  {/* onError fallback for img (initially hidden) */}
+                  {!isAudio(file) && (
+                    <div className="absolute inset-0 items-center justify-center" style={{ display: 'none', background: 'var(--surface3)' }}>
+                      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: 'var(--text3)' }}>
+                        <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
+                      </svg>
+                    </div>
+                  )}
                   {/* Type badge */}
                   <div className="absolute top-2 left-2">
                     <span className="text-xs font-mono px-1.5 py-0.5 rounded font-500"
                       style={{
-                        background: isVideo(file) ? 'rgba(34,211,238,0.15)' : 'rgba(52,211,153,0.15)',
-                        color: isVideo(file) ? 'var(--cyan)' : 'var(--green)',
+                        background: isVideo(file) ? 'rgba(34,211,238,0.15)' : isAudio(file) ? 'rgba(168,85,247,0.15)' : 'rgba(52,211,153,0.15)',
+                        color: isVideo(file) ? 'var(--cyan)' : isAudio(file) ? '#a855f7' : 'var(--green)',
                         backdropFilter: 'blur(4px)',
                       }}>
-                      {isVideo(file) ? '▶' : '⬜'} {ext(file)}
+                      {isVideo(file) ? '▶' : isAudio(file) ? '♪' : '⬜'} {ext(file)}
                     </span>
                   </div>
                   {(selected || checked) && (

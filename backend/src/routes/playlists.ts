@@ -5,7 +5,7 @@ import db from '../db/schema';
 const router = Router();
 
 function formatItem(row: Record<string, unknown>) {
-  const { filename, original_name, mime_type, size_bytes, duration_seconds, media_file_id, ...item } = row;
+  const { filename, original_name, mime_type, size_bytes, duration_seconds, thumbnail_path, media_file_id, ...item } = row;
   return {
     ...item,
     media_file_id,
@@ -17,6 +17,7 @@ function formatItem(row: Record<string, unknown>) {
       size: size_bytes,
       duration_seconds: duration_seconds ?? null,
       url: `/uploads/${filename}`,
+      thumbnail_url: thumbnail_path ? `/uploads/thumbnails/${thumbnail_path}` : null,
     } : null,
   };
 }
@@ -24,7 +25,7 @@ function formatItem(row: Record<string, unknown>) {
 function getItems(playlistId: string, includeUnresolved = false) {
   const join = includeUnresolved ? 'LEFT JOIN' : 'JOIN';
   const rows = db.prepare(`
-    SELECT pi.*, mf.filename, mf.original_name, mf.mime_type, mf.size_bytes, mf.duration_seconds
+    SELECT pi.*, mf.filename, mf.original_name, mf.mime_type, mf.size_bytes, mf.duration_seconds, mf.thumbnail_path
     FROM playlist_items pi
     ${join} media_files mf ON mf.id = pi.media_file_id
     WHERE pi.playlist_id = ?
@@ -348,7 +349,7 @@ router.post('/:id/items', (req: Request, res: Response) => {
   db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), id);
 
   const row = db.prepare(`
-    SELECT pi.*, mf.filename, mf.original_name, mf.mime_type, mf.size_bytes, mf.duration_seconds
+    SELECT pi.*, mf.filename, mf.original_name, mf.mime_type, mf.size_bytes, mf.duration_seconds, mf.thumbnail_path
     FROM playlist_items pi
     JOIN media_files mf ON mf.id = pi.media_file_id
     WHERE pi.id = ?
@@ -525,7 +526,7 @@ function updateItem(req: Request, res: Response) {
   db.prepare('UPDATE playlists SET updated_at = ? WHERE id = ?').run(new Date().toISOString(), id);
 
   const row = db.prepare(`
-    SELECT pi.*, mf.filename, mf.original_name, mf.mime_type, mf.size_bytes, mf.duration_seconds
+    SELECT pi.*, mf.filename, mf.original_name, mf.mime_type, mf.size_bytes, mf.duration_seconds, mf.thumbnail_path
     FROM playlist_items pi
     LEFT JOIN media_files mf ON mf.id = pi.media_file_id
     WHERE pi.id = ?
