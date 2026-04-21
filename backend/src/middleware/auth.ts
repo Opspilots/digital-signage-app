@@ -8,7 +8,7 @@ if (process.env.JWT_SECRET === 'change-me-in-production' || !process.env.JWT_SEC
   console.warn('[SECURITY WARNING] JWT_SECRET is not set or uses default value. Set a strong secret in .env before production use.');
 }
 
-export const JWT_ACCESS_TTL = '15m';
+export const JWT_ACCESS_TTL = '2h';
 export const JWT_REFRESH_TTL = '7d';
 
 export interface AuthPayload {
@@ -18,15 +18,12 @@ export interface AuthPayload {
   type: 'access' | 'refresh';
 }
 
-// Routes where screen tokens (device tokens) are permitted
-const SCREEN_TOKEN_PUBLIC_PATHS = [
-  '/api/screens/pair',
-  '/api/screens/heartbeat',
-  '/api/screens/content',
-];
-
-function isScreenTokenPublicPath(path: string): boolean {
-  return SCREEN_TOKEN_PUBLIC_PATHS.some((p) => path.startsWith(p));
+// Screen tokens (device tokens) are allowed to read their assigned playlist.
+// Uses req.originalUrl (full path) because req.path is stripped by Express mount prefix.
+function isScreenTokenAllowed(req: Request): boolean {
+  const url = req.originalUrl.split('?')[0];
+  // Allow read-only access to a single playlist (for PlaylistPlayer on screen devices)
+  return req.method === 'GET' && /^\/api\/playlists\/[^/]+$/.test(url);
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
@@ -37,10 +34,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
   }
   const token = header.slice(7);
 
-  // Screen tokens are only valid on public screen endpoints
+  // Screen tokens are only valid for reading playlists (PlaylistPlayer on screen devices)
   const screenRow = db.prepare('SELECT id FROM screens WHERE token = ?').get(token);
   if (screenRow) {
-    if (isScreenTokenPublicPath(req.path)) {
+    if (isScreenTokenAllowed(req)) {
       next();
       return;
     }
