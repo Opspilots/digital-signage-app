@@ -41,7 +41,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
   const basePayload = { sub: user.id, username: user.username, role: user.role ?? 'editor' };
   const accessToken = jwt.sign({ ...basePayload, type: 'access' }, JWT_SECRET, { expiresIn: JWT_ACCESS_TTL });
-  const refreshToken = jwt.sign({ ...basePayload, type: 'refresh' }, JWT_SECRET, { expiresIn: JWT_REFRESH_TTL });
+  const refreshToken = jwt.sign({ ...basePayload, type: 'refresh' }, JWT_SECRET, { expiresIn: JWT_REFRESH_TTL, jwtid: randomUUID() });
 
   res.json({ access_token: accessToken, refresh_token: refreshToken, token_type: 'Bearer' });
 });

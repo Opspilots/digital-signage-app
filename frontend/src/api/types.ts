@@ -20,7 +20,11 @@ export interface MediaFile {
   mime_type: string
   size: number
   url: string
-  thumbnail_url?: string
+  thumbnail_url?: string | null
+  duration_seconds?: number | null
+  width?: number | null
+  height?: number | null
+  fps?: number | null
   created_at: string
 }
 

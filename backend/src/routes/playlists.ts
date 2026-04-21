@@ -9,12 +9,15 @@ function formatItem(row: Record<string, unknown>) {
   return {
     ...item,
     media_file_id,
-    media_file: {
+    media_file: media_file_id ? {
       id: media_file_id,
+      filename,
       original_name,
       mime_type,
+      size: size_bytes,
+      duration_seconds: duration_seconds ?? null,
       url: `/uploads/${filename}`,
-    },
+    } : null,
   };
 }
 

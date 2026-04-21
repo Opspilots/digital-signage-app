@@ -101,7 +101,7 @@ router.post('/', (req: Request, res: Response) => {
   }
   // Allow start_time >= end_time for overnight schedules (e.g. 23:00-02:00)
 
-  const playlist = db.prepare('SELECT id FROM playlists WHERE id = ?').get(playlist_id);
+  const playlist = db.prepare('SELECT id FROM playlists WHERE id = ? AND deleted_at IS NULL').get(playlist_id);
   if (!playlist) {
     res.status(404).json({ error: 'Playlist not found' });
     return;
@@ -120,10 +120,11 @@ router.post('/', (req: Request, res: Response) => {
   const conflicts = existing.filter(e => schedulesOverlap(e, newSlot));
 
   const id = uuidv4();
+  const now = new Date().toISOString();
   db.prepare(`
-    INSERT INTO schedules (id, screen_id, playlist_id, days_of_week, start_time, end_time, priority)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, screenId, playlist_id, days_of_week, start_time, end_time, resolvedPriority);
+    INSERT INTO schedules (id, screen_id, playlist_id, days_of_week, start_time, end_time, priority, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, screenId, playlist_id, days_of_week, start_time, end_time, resolvedPriority, now);
 
   const row = db.prepare(`
     SELECT s.*, p.title as playlist_title
