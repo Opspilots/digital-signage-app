@@ -64,6 +64,10 @@ app.use('/api/screens', requireAuth, screensRouter);
 app.use('/api/screens/:screenId/schedules', requireAuth, schedulesRouter);
 app.use('/api/users', requireAuth, usersRouter);
 
+// Serve uploaded files
+const UPLOADS_DIR = path.join(__dirname, '../../uploads');
+app.use('/uploads', express.static(UPLOADS_DIR));
+
 // Serve frontend static files (SPA fallback)
 const FRONTEND_DIST = process.env.FRONTEND_DIST
   ? path.resolve(process.env.FRONTEND_DIST)
