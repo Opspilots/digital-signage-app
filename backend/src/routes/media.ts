@@ -58,8 +58,9 @@ function isVideo(mimeType: string): boolean {
 }
 
 export function parseFps(fpsStr: string): number | null {
+  if (!fpsStr || !fpsStr.trim()) return null;
   const [num, den] = fpsStr.split('/').map(Number);
-  if (isNaN(num)) return null;
+  if (isNaN(num) || num <= 0) return null;
   return den ? num / den : num;
 }
 

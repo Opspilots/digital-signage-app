@@ -201,10 +201,26 @@ if (!screensInfo.some(col => col.name === 'pairing_expires_at')) {
 
 // Seed default admin user from env vars on first run
 const ADMIN_USERNAME = process.env.ADMIN_USERNAME ?? 'admin';
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? 'admin';
 
-if (ADMIN_PASSWORD === 'admin') {
-  console.warn('[SECURITY WARNING] ADMIN_PASSWORD is set to the default value "admin". Set a strong password in .env before production use.');
+// Generate secure default for development; require explicit config for production
+const isProduction = process.env.NODE_ENV === 'production';
+let ADMIN_PASSWORD: string = process.env.ADMIN_PASSWORD || '';
+
+if (!ADMIN_PASSWORD) {
+  if (isProduction) {
+    throw new Error('[SECURITY ERROR] ADMIN_PASSWORD must be set in .env for production. Cannot start server with default password.');
+  }
+  // Development: use a random password and log it
+  const crypto = require('crypto');
+  ADMIN_PASSWORD = crypto.randomBytes(16).toString('base64');
+  console.warn(`[DEV] Generated temporary admin password: ${ADMIN_PASSWORD}`);
+  console.warn('[DEV] Set ADMIN_PASSWORD in .env to use a custom password');
+} else if (ADMIN_PASSWORD === 'admin') {
+  console.error('[SECURITY ERROR] ADMIN_PASSWORD is set to "admin" (default weak password).');
+  console.error('[SECURITY ERROR] This is not secure. Please set a strong password in .env');
+  if (isProduction) {
+    throw new Error('Cannot start production server with weak default password.');
+  }
 }
 
 const existingAdmin = db.prepare('SELECT id FROM users WHERE username = ?').get(ADMIN_USERNAME);
