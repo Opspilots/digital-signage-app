@@ -11,6 +11,9 @@ frontend/dist/
 .env
 .env.local
 .env.*.local
+*.env.bak*
+.env.backup*
+*secrets_rotation*
 
 # Runtime data
 data/
