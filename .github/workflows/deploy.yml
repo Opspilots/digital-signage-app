@@ -37,10 +37,6 @@ jobs:
           ssh -i ~/.ssh/id_ed25519 ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} '
             set -e
             cd /var/www/digital-signage-app
-            if [ -f docker-compose.yml ]; then
-              /usr/bin/docker compose build
-              /usr/bin/docker compose up -d
-            fi
             (cd backend && npm install --production=false && npm run build)
             (cd frontend && npm install --production=false && npm run build)
             sudo /usr/bin/systemctl restart digital-signage.service
